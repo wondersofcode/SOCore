@@ -7,7 +7,7 @@
 - `docs/` — sənədləşdirmə (bax: `docs/SETUP-CHECKLIST.md`)
 - `socore-backend/` — backend (FastAPI) — bax `socore-backend/README.md`
 - `design_zip/` — dashboard/frontend (Vite + React)
-- `threat-intel-soar/` — Threat Intel & SOAR (MISP + Cortex, TheHive + Shuffle) — bax `threat-intel-soar/README.md`
+- `docs/archive/threat-intel-soar/` — ilkin Threat Intel/SOAR skriptləri (arxiv, bax `docs/archive/threat-intel-soar/README.md`) — Slack/dry-run blok/case funksionallığı indi `socore-backend`-dədir; MISP/Cortex/Shuffle üçün bax `docs/SETUP-CHECKLIST.md`
 
 ## Başlamaq üçün
 
