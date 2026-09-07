@@ -1,0 +1,126 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+@import 'tailwindcss';
+
+@theme inline {
+  --color-background: #0d1117;
+  --color-surface: #161b22;
+  --color-surface-2: #1c2128;
+  --color-border: #21262d;
+  --color-border-bright: #30363d;
+  --color-cyan: #00d4ff;
+  --color-cyan-dim: #00d4ff26;
+  --color-cyan-glow: #00d4ff40;
+  --color-purple: #a855f7;
+  --color-purple-dim: #a855f726;
+  --color-critical: #ef4444;
+  --color-critical-dim: #ef444420;
+  --color-high: #f97316;
+  --color-high-dim: #f9731620;
+  --color-medium: #eab308;
+  --color-medium-dim: #eab30820;
+  --color-low: #3b82f6;
+  --color-low-dim: #3b82f620;
+  --color-info: #6b7280;
+  --color-info-dim: #6b728020;
+  --color-success: #22c55e;
+  --color-text-primary: #e6edf3;
+  --color-text-secondary: #8b949e;
+  --color-text-muted: #484f58;
+  --font-sans: 'Inter', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html, body, #root {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background-color: #0d1117;
+  color: #e6edf3;
+  font-family: 'Inter', system-ui, sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #30363d;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #484f58;
+}
+
+.font-mono {
+  font-family: 'JetBrains Mono', monospace;
+}
+
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(0.85); }
+}
+
+@keyframes scan-line {
+  0% { transform: translateY(-100%); opacity: 0; }
+  10% { opacity: 1; }
+  90% { opacity: 1; }
+  100% { transform: translateY(400%); opacity: 0; }
+}
+
+@keyframes flow-pulse {
+  0%, 100% { opacity: 0.3; }
+  50% { opacity: 1; }
+}
+
+@keyframes glow-flicker {
+  0%, 100% { box-shadow: 0 0 8px #00d4ff40; }
+  50% { box-shadow: 0 0 16px #00d4ff70; }
+}
+
+.pulse-live {
+  animation: pulse-dot 1.5s ease-in-out infinite;
+}
+
+.flow-arrow {
+  animation: flow-pulse 2s ease-in-out infinite;
+}
+
+.glow-card {
+  animation: glow-flicker 3s ease-in-out infinite;
+}
+
+/* Grid overlay bg */
+.grid-bg {
+  background-image:
+    linear-gradient(rgba(0, 212, 255, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 212, 255, 0.03) 1px, transparent 1px);
+  background-size: 32px 32px;
+}
+
+/* Recharts custom */
+.recharts-cartesian-grid line {
+  stroke: #21262d !important;
+}
+.recharts-text {
+  fill: #8b949e !important;
+  font-family: 'JetBrains Mono', monospace !important;
+  font-size: 11px !important;
+}
+.recharts-tooltip-wrapper {
+  outline: none !important;
+}

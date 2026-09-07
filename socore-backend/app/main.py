@@ -1,0 +1,192 @@
+"""
+SOCore backend — FastAPI application.
+
+The brain between detection and the dashboard:
+  Wazuh event  ->  correlate (risk score)  ->  explain (AI)  ->  store
+                                                                   |
+  dashboard  <-  /api/alerts, /api/pending  <----------------------+
+  analyst decision  ->  /api/approve/{id}  ->  run playbook (dry-run) + Slack
+
+Run:  uvicorn app.main:app --reload --port 8000
+Docs: http://localhost:8000/docs
+"""
+from __future__ import annotations
+
+import logging
+
+from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+
+from . import actions, ai_explainer
+from .correlation import correlate
+from .models import (
+    AddNoteRequest,
+    Alert,
+    ApprovalDecision,
+    Case,
+    CreateCaseRequest,
+    UpdateCaseRequest,
+    WazuhEvent,
+)
+from .seed import seed_alerts
+from .store import store
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(message)s")
+logger = logging.getLogger("socore")
+
+app = FastAPI(title="SOCore Backend", version="1.0.0")
+
+# The dashboard runs on a different port in dev, so allow browser calls.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # tighten to the dashboard origin in production
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+@app.on_event("startup")
+def _startup() -> None:
+    # Seed a handful of alerts so the dashboard has content before any real
+    # Wazuh event arrives. Real events append to these.
+    store.seed(seed_alerts())
+    logger.info("Seeded %d alerts. AI live: %s", len(store.all()), ai_explainer.is_live())
+
+
+# ── Health / status ─────────────────────────────────────────────────────────
+@app.get("/api/health")
+def health() -> dict:
+    return {
+        "status": "ok",
+        "aiLive": ai_explainer.is_live(),
+        "alerts": len(store.all()),
+        "pending": len(store.pending()),
+    }
+
+
+# ── Ingestion: Wazuh -> scored alert ────────────────────────────────────────
+@app.post("/api/ingest", response_model=Alert)
+def ingest(event: WazuhEvent) -> Alert:
+    """
+    Entry point for the detection layer. Wazuh's integration script POSTs an
+    event here; we score it, explain it, store it, and fire the automatic
+    notification. High-risk alerts land in the approval queue.
+    """
+    alert = correlate(event, store.next_id())
+    alert.aiExplanation = ai_explainer.explain(alert)
+    store.add(alert)
+
+    # Notifications are low-risk, so they run without approval.
+    actions.send_slack_alert(
+        f"New {alert.severity.value} alert: {alert.attackType} from {alert.sourceIP} "
+        f"(risk {alert.riskScore}, {alert.mitreId})"
+    )
+    logger.info("Ingested %s risk=%d approval=%s", alert.id, alert.riskScore, alert.approvalStatus.value)
+    return alert
+
+
+# ── Reads for the dashboard ─────────────────────────────────────────────────
+@app.get("/api/alerts", response_model=list[Alert])
+def list_alerts() -> list[Alert]:
+    return store.all()
+
+
+@app.get("/api/alerts/{alert_id}", response_model=Alert)
+def get_alert(alert_id: str) -> Alert:
+    alert = store.get(alert_id)
+    if alert is None:
+        raise HTTPException(status_code=404, detail="Alert not found")
+    return alert
+
+
+@app.get("/api/pending", response_model=list[Alert])
+def list_pending() -> list[Alert]:
+    return store.pending()
+
+
+@app.get("/api/decisions")
+def list_decisions() -> list:
+    return store.decisions()
+
+
+# ── Human-in-the-loop decision ──────────────────────────────────────────────
+@app.post("/api/approve/{alert_id}", response_model=Alert)
+def approve(alert_id: str, decision: ApprovalDecision) -> Alert:
+    """
+    The dashboard's Approve/Reject buttons call this. Approving runs the
+    proposed playbook (dry-run firewall block + Slack), rejecting closes the
+    alert with no network change. Either way the decision is audited.
+    """
+    alert = store.get(alert_id)
+    if alert is None:
+        raise HTTPException(status_code=404, detail="Alert not found")
+
+    updated = store.decide(alert_id, decision.decision, decision.reason, decision.analyst)
+    assert updated is not None
+
+    if updated.approvalStatus.value == "Approved" and updated.proposedAction:
+        result = actions.block_ip(updated.proposedAction.target, dry_run=updated.proposedAction.dryRun)
+        actions.send_slack_alert(
+            f"{decision.analyst} approved: {updated.proposedAction.action} "
+            f"on {updated.proposedAction.target} — {result['status']}"
+        )
+        logger.info("Approved %s -> %s", alert_id, result)
+    else:
+        actions.send_slack_alert(f"{decision.analyst} rejected the action on {updated.sourceIP}")
+        logger.info("Rejected %s", alert_id)
+
+    return updated
+
+
+# ── Case management (in-house replacement for TheHive) ──────────────────────
+# TheHive 4's Docker images are no longer published and TheHive 5 requires a
+# commercial license after a 14-day trial. Case tracking is handled here
+# instead: same shape the dashboard's CaseManagement screen expects, with no
+# external dependency or license risk.
+
+@app.get("/api/cases", response_model=list[Case])
+def list_cases() -> list[Case]:
+    return store.all_cases()
+
+
+@app.get("/api/cases/{case_id}", response_model=Case)
+def get_case(case_id: str) -> Case:
+    case = store.get_case(case_id)
+    if case is None:
+        raise HTTPException(status_code=404, detail="Case not found")
+    return case
+
+
+@app.post("/api/cases", response_model=Case)
+def create_case(req: CreateCaseRequest) -> Case:
+    """Open a case from an alert — the analyst's 'Escalate to case' action."""
+    case = store.open_case_from_alert(req.alertId, req.title, req.assignedTo)
+    if case is None:
+        raise HTTPException(status_code=404, detail="Alert not found")
+    actions.send_slack_alert(f"Case {case.id} opened: {case.title}")
+    logger.info("Opened case %s from alert %s", case.id, req.alertId)
+    return case
+
+
+@app.patch("/api/cases/{case_id}", response_model=Case)
+def update_case(case_id: str, req: UpdateCaseRequest) -> Case:
+    case = store.update_case(case_id, req.status, req.assignedTo)
+    if case is None:
+        raise HTTPException(status_code=404, detail="Case not found")
+    return case
+
+
+@app.post("/api/cases/{case_id}/notes", response_model=Case)
+def add_case_note(case_id: str, req: AddNoteRequest) -> Case:
+    case = store.add_case_note(case_id, req.author, req.text)
+    if case is None:
+        raise HTTPException(status_code=404, detail="Case not found")
+    return case
+
+
+@app.post("/api/cases/{case_id}/tasks/{task_id}/toggle", response_model=Case)
+def toggle_case_task(case_id: str, task_id: str) -> Case:
+    case = store.toggle_task(case_id, task_id)
+    if case is None:
+        raise HTTPException(status_code=404, detail="Case not found")
+    return case
