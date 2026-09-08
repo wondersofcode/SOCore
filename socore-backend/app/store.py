@@ -12,7 +12,6 @@ from __future__ import annotations
 import json
 import threading
 from datetime import datetime
-from itertools import count
 
 from . import db
 from .models import (
@@ -77,19 +76,30 @@ def _row_to_case(row: dict) -> Case:
 
 class AlertStore:
     def __init__(self) -> None:
-        self._seq = count(1)
-        self._case_seq = count(1)
         self._lock = threading.Lock()
         self._seeded = False
 
     # ── ids ────────────────────────────────────────────────────────────────
+    # Derived from the table itself rather than an in-process counter: a
+    # counter resets to 1 on every restart, which — now that ids persist in
+    # Postgres — collided with ids already used earlier the same day and
+    # silently clobbered them via the ON CONFLICT clause in add().
+    def _next_seq_id(self, table: str, prefix: str) -> str:
+        today = f"{prefix}-{datetime.utcnow():%Y%m%d}-"
+        with self._lock, db.get_cursor() as cur:
+            cur.execute(
+                f"SELECT id FROM {table} WHERE id LIKE %s ORDER BY id DESC LIMIT 1",
+                (today + "%",),
+            )
+            row = cur.fetchone()
+        n = int(row["id"].rsplit("-", 1)[-1]) + 1 if row else 1
+        return f"{today}{n:03d}"
+
     def next_id(self) -> str:
-        n = next(self._seq)
-        return f"ALT-{datetime.utcnow():%Y%m%d}-{n:03d}"
+        return self._next_seq_id("alerts", "ALT")
 
     def next_case_id(self) -> str:
-        n = next(self._case_seq)
-        return f"CASE-{datetime.utcnow():%Y%m%d}-{n:03d}"
+        return self._next_seq_id("cases", "CASE")
 
     # ── alerts: writes ───────────────────────────────────────────────────
     def add(self, alert: Alert) -> Alert:
