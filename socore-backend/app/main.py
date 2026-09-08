@@ -14,10 +14,10 @@ from __future__ import annotations
 
 import logging
 
-from fastapi import FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
-from . import actions, ai_explainer, db, enrichment
+from . import actions, ai_explainer, auth, db, enrichment
 from .correlation import correlate
 from .models import (
     AddNoteRequest,
@@ -70,6 +70,11 @@ def health() -> dict:
         "alerts": len(store.all()),
         "pending": len(store.pending()),
     }
+
+
+@app.get("/api/me")
+def me(current_user: auth.CurrentUser = Depends(auth.get_current_user)) -> dict:
+    return {"email": current_user.email, "role": current_user.role, "display_name": current_user.display_name}
 
 
 # ── Ingestion: Wazuh -> scored alert ────────────────────────────────────────
@@ -163,28 +168,33 @@ def list_decisions() -> list:
 
 # ── Human-in-the-loop decision ──────────────────────────────────────────────
 @app.post("/api/approve/{alert_id}", response_model=Alert)
-def approve(alert_id: str, decision: ApprovalDecision) -> Alert:
+def approve(
+    alert_id: str,
+    decision: ApprovalDecision,
+    current_user: auth.CurrentUser = Depends(auth.get_current_user),
+) -> Alert:
     """
     The dashboard's Approve/Reject buttons call this. Approving runs the
     proposed playbook (dry-run firewall block + Slack), rejecting closes the
-    alert with no network change. Either way the decision is audited.
+    alert with no network change. Either way the decision is audited under
+    the authenticated caller's identity, not whatever the client claims.
     """
     alert = store.get(alert_id)
     if alert is None:
         raise HTTPException(status_code=404, detail="Alert not found")
 
-    updated = store.decide(alert_id, decision.decision, decision.reason, decision.analyst)
+    updated = store.decide(alert_id, decision.decision, decision.reason, current_user.display_name)
     assert updated is not None
 
     if updated.approvalStatus.value == "Approved" and updated.proposedAction:
         result = actions.block_ip(updated.proposedAction.target, dry_run=updated.proposedAction.dryRun)
         actions.send_slack_alert(
-            f"{decision.analyst} approved: {updated.proposedAction.action} "
+            f"{current_user.display_name} approved: {updated.proposedAction.action} "
             f"on {updated.proposedAction.target} — {result['status']}"
         )
         logger.info("Approved %s -> %s", alert_id, result)
     else:
-        actions.send_slack_alert(f"{decision.analyst} rejected the action on {updated.sourceIP}")
+        actions.send_slack_alert(f"{current_user.display_name} rejected the action on {updated.sourceIP}")
         logger.info("Rejected %s", alert_id)
 
     return updated
@@ -210,12 +220,15 @@ def get_case(case_id: str) -> Case:
 
 
 @app.post("/api/cases", response_model=Case)
-def create_case(req: CreateCaseRequest) -> Case:
+def create_case(
+    req: CreateCaseRequest,
+    current_user: auth.CurrentUser = Depends(auth.get_current_user),
+) -> Case:
     """Open a case from an alert — the analyst's 'Escalate to case' action."""
-    case = store.open_case_from_alert(req.alertId, req.title, req.assignedTo)
+    case = store.open_case_from_alert(req.alertId, req.title, current_user.display_name)
     if case is None:
         raise HTTPException(status_code=404, detail="Alert not found")
-    actions.send_slack_alert(f"Case {case.id} opened: {case.title}")
+    actions.send_slack_alert(f"Case {case.id} opened by {current_user.display_name}: {case.title}")
     logger.info("Opened case %s from alert %s", case.id, req.alertId)
     return case
 
@@ -229,8 +242,12 @@ def update_case(case_id: str, req: UpdateCaseRequest) -> Case:
 
 
 @app.post("/api/cases/{case_id}/notes", response_model=Case)
-def add_case_note(case_id: str, req: AddNoteRequest) -> Case:
-    case = store.add_case_note(case_id, req.author, req.text)
+def add_case_note(
+    case_id: str,
+    req: AddNoteRequest,
+    current_user: auth.CurrentUser = Depends(auth.get_current_user),
+) -> Case:
+    case = store.add_case_note(case_id, current_user.display_name, req.text)
     if case is None:
         raise HTTPException(status_code=404, detail="Case not found")
     return case

@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import { alerts as seedAlerts, cases as seedCases } from './data'
 import type { Alert, ApprovalStatus, Case } from './data'
 import { api } from './api'
+import { useAuth } from './lib/AuthContext'
 
 export interface Decision {
   alertId: string
@@ -39,7 +40,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const [live, setLive] = useState(false)
   const [aiLive, setAiLive] = useState(false)
   const [caseList, setCaseList] = useState<Case[]>(seedCases)
-  const currentUser = 'K. Osei'
+  const { user } = useAuth()
+  const currentUser = user?.email ?? 'Unassigned'
 
   // Try the backend on mount. If it answers, switch to live data and poll it.
   // If it doesn't, we silently stay on the seeded mock data.

@@ -9,7 +9,9 @@ import Approvals from './components/Approvals'
 import Reports from './components/Reports'
 import Settings from './components/Settings'
 import SearchResults from './components/SearchResults'
+import Login from './components/Login'
 import { StoreProvider, useStore } from './store'
+import { AuthProvider, useAuth } from './lib/AuthContext'
 
 type Screen = 'dashboard' | 'alerts' | 'approvals' | 'cases' | 'simulations' | 'attack' | 'reports' | 'settings'
 
@@ -64,8 +66,10 @@ function AppShell() {
   const [search, setSearch] = useState('')
 
   const { alerts, pending, live: backendLive, aiLive } = useStore()
+  const { user, role, signOut } = useAuth()
   const openAlertCount = alerts.filter(a => a.status !== 'Resolved').length
   const query = search.trim().toLowerCase()
+  const visibleNavItems = NAV_ITEMS.filter(item => item.id !== 'settings' || role === 'admin')
 
   const screenTitles: Record<Screen, string> = {
     dashboard: 'Dashboard',
@@ -107,7 +111,7 @@ function AppShell() {
 
         {/* Nav */}
         <nav className="flex-1 py-3 overflow-y-auto">
-          {NAV_ITEMS.map(item => {
+          {visibleNavItems.map(item => {
             const active = screen === item.id
             const isSim = item.id === 'simulations'
             const activeColor = isSim ? '#a855f7' : '#00d4ff'
@@ -216,9 +220,15 @@ function AppShell() {
             {/* User avatar */}
             <div className="flex items-center gap-2">
               <div className="w-7 h-7 rounded-full bg-[#00d4ff20] border border-[#00d4ff40] flex items-center justify-center text-[10px] font-bold text-[#00d4ff] font-mono">
-                KO
+                {(user?.email ?? '??').slice(0, 2).toUpperCase()}
               </div>
-              {!collapsed && <span className="text-xs text-[#8b949e]">K. Osei</span>}
+              {!collapsed && <span className="text-xs text-[#8b949e]">{user?.email}</span>}
+              <button
+                onClick={signOut}
+                className="text-[10px] text-[#6b7280] hover:text-[#ef4444] border border-[#21262d] rounded-lg px-2 py-1 transition-colors"
+              >
+                Sign out
+              </button>
             </div>
           </div>
         </header>
@@ -278,10 +288,32 @@ function AppShell() {
   )
 }
 
-export default function App() {
+function Gate() {
+  const { session, loading } = useAuth()
+
+  if (loading) {
+    return (
+      <div className="h-screen flex items-center justify-center bg-[#0d1117]">
+        <div className="w-6 h-6 rounded-full border-2 border-[#21262d] border-t-[#00d4ff] animate-spin" />
+      </div>
+    )
+  }
+
+  if (!session) {
+    return <Login />
+  }
+
   return (
     <StoreProvider>
       <AppShell />
     </StoreProvider>
+  )
+}
+
+export default function App() {
+  return (
+    <AuthProvider>
+      <Gate />
+    </AuthProvider>
   )
 }

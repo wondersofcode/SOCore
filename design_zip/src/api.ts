@@ -10,13 +10,21 @@
  * With no env var it defaults to localhost:8000.
  */
 import type { Alert, Case } from './data'
+import { supabase } from './lib/supabase'
 
 const BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:8000'
 
+async function authHeaders(): Promise<Record<string, string>> {
+  const { data } = await supabase.auth.getSession()
+  const token = data.session?.access_token
+  return token ? { Authorization: `Bearer ${token}` } : {}
+}
+
 async function req<T>(path: string, init?: RequestInit): Promise<T> {
+  const auth = await authHeaders()
   const res = await fetch(`${BASE}${path}`, {
     ...init,
-    headers: { 'Content-Type': 'application/json', ...(init?.headers ?? {}) },
+    headers: { 'Content-Type': 'application/json', ...auth, ...(init?.headers ?? {}) },
     // Fail fast so the UI doesn't hang when the backend is down.
     signal: AbortSignal.timeout(4000),
   })
