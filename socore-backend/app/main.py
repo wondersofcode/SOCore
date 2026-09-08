@@ -122,15 +122,16 @@ def ingest(event: WazuhEvent) -> Alert:
 
     store.add(alert)
 
-    # Notifications are low-risk, so they run without approval.
-    actions.send_slack_alert(
-        f"New {alert.severity.value} alert: {alert.attackType} from {alert.sourceIP} "
-        f"(risk {alert.riskScore}, {alert.mitreId})"
-    )
-
-    # High-risk alerts also notify the configured Shuffle playbook, if wired up.
+    # Notifications are low-risk, so they run without approval. High-risk
+    # alerts are handed to the Shuffle playbook instead — it posts its own
+    # Slack message, so calling send_slack_alert here too would duplicate it.
     if alert.riskScore > 70:
         enrichment.shuffle_trigger(alert.model_dump(mode="json"))
+    else:
+        actions.send_slack_alert(
+            f"New {alert.severity.value} alert: {alert.attackType} from {alert.sourceIP} "
+            f"(risk {alert.riskScore}, {alert.mitreId})"
+        )
 
     logger.info("Ingested %s risk=%d approval=%s", alert.id, alert.riskScore, alert.approvalStatus.value)
     return alert
