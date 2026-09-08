@@ -17,7 +17,7 @@ import logging
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
-from . import actions, ai_explainer
+from . import actions, ai_explainer, enrichment
 from .correlation import correlate
 from .models import (
     AddNoteRequest,
@@ -69,11 +69,39 @@ def health() -> dict:
 def ingest(event: WazuhEvent) -> Alert:
     """
     Entry point for the detection layer. Wazuh's integration script POSTs an
-    event here; we score it, explain it, store it, and fire the automatic
-    notification. High-risk alerts land in the approval queue.
+    event here. If the event doesn't already carry reputation scores, we run
+    it through MISP + Cortex ourselves before scoring — this is what actually
+    exercises the threat-intel stack rather than trusting whatever numbers
+    Wazuh sent. Enrichment is best-effort and time-boxed: a slow or
+    unconfigured MISP/Cortex never blocks the response to Wazuh.
     """
+    from .correlation import _is_internal  # local import avoids a cycle at module load
+
+    internal = _is_internal(event.source_ip, event.country)
+    enrich_result = None
+    if event.vt_score is None and event.abuse_score is None:
+        enrich_result = enrichment.enrich_ip(event.source_ip, internal)
+        event.vt_score = enrich_result["vt_score"]
+        event.abuse_score = enrich_result["abuse_score"]
+
     alert = correlate(event, store.next_id())
     alert.aiExplanation = ai_explainer.explain(alert)
+
+    # Reflect what enrichment actually did, not just what the scores imply —
+    # "skipped" (not configured) reads differently from "clean" (checked, no hit).
+    if enrich_result is not None:
+        for src in alert.sources:
+            if src.name == "MISP":
+                if enrich_result["misp_skipped"]:
+                    src.status, src.detail = "skipped", "MISP not configured" if not internal else "Internal address — not submitted"
+                elif enrich_result["misp_hit"]:
+                    src.status, src.detail = "hit", "Address appears in an active IOC event"
+                else:
+                    src.status, src.detail = "clean", "No matching IOC event"
+            if src.name == "Cortex":
+                src.status = "skipped" if enrich_result["cortex_skipped"] else ("hit" if max(event.vt_score, event.abuse_score) >= 40 else "clean")
+                src.detail = "Cortex not configured" if enrich_result["cortex_skipped"] else "Analyzers completed"
+
     store.add(alert)
 
     # Notifications are low-risk, so they run without approval.
@@ -81,6 +109,11 @@ def ingest(event: WazuhEvent) -> Alert:
         f"New {alert.severity.value} alert: {alert.attackType} from {alert.sourceIP} "
         f"(risk {alert.riskScore}, {alert.mitreId})"
     )
+
+    # High-risk alerts also notify the configured Shuffle playbook, if wired up.
+    if alert.riskScore > 70:
+        enrichment.shuffle_trigger(alert.model_dump(mode="json"))
+
     logger.info("Ingested %s risk=%d approval=%s", alert.id, alert.riskScore, alert.approvalStatus.value)
     return alert
 
