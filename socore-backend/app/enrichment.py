@@ -30,8 +30,6 @@ CORTEX_POLL_TIMEOUT_S = 8
 CORTEX_POLL_INTERVAL_S = 1
 HTTP_TIMEOUT_S = 4
 
-_TAXONOMY_LEVEL_SCORE = {"safe": 0, "info": 10, "suspicious": 60, "malicious": 90}
-
 
 def _misp_config():
     url = os.environ.get("MISP_URL", "").strip().rstrip("/")
@@ -132,18 +130,41 @@ def _cortex_poll_job(base_url: str, key: str, job_id: str) -> dict | None:
     return None  # timed out — Cortex is slow or overloaded, don't block the caller
 
 
-def _score_from_report(job: dict | None) -> int:
+def _score_from_report(job: dict | None, namespace: str, predicate: str) -> int:
+    """
+    Extract a 0-100 score from the ONE taxonomy line that actually reports
+    risk (identified by namespace+predicate), ignoring every other line the
+    analyzer returns. Cortex reports mix a real verdict with purely
+    informational lines (e.g. VT's passive-DNS resolution count, AbuseIPDB's
+    whitelist flag and historical report count) that happen to carry their
+    own "level" — taking the worst level across ALL of them turns those
+    informational lines into false risk signals.
+
+      VirusTotal (namespace "VT", predicate "GetReport"): value is "X/Y",
+      the count of AV engines that flagged it out of the total — score is
+      X/Y scaled to 0-100.
+
+      AbuseIPDB (namespace "AbuseIPDB", predicate "Score"): value is
+      already the 0-100 abuse confidence score.
+    """
     if not job or job.get("status") != "Success":
         return 0
     taxonomies = job.get("report", {}).get("summary", {}).get("taxonomies", [])
-    if not taxonomies:
-        return 0
-    # Take the worst (highest) level any taxonomy reports.
-    best = 0
     for t in taxonomies:
-        level = str(t.get("level", "")).lower()
-        best = max(best, _TAXONOMY_LEVEL_SCORE.get(level, 0))
-    return best
+        if t.get("namespace") != namespace or t.get("predicate") != predicate:
+            continue
+        value = t.get("value")
+        if isinstance(value, str) and "/" in value:
+            hits, total = value.split("/", 1)
+            try:
+                hits, total = float(hits), float(total)
+                return round(hits / total * 100) if total else 0
+            except ValueError:
+                break
+        if isinstance(value, (int, float)):
+            return int(value)
+        break
+    return 0
 
 
 def cortex_analyze_ip(ip: str) -> dict:
@@ -185,13 +206,13 @@ def cortex_analyze_ip(ip: str) -> dict:
         job_id = _cortex_run_analyzer(base_url, key, vt_id, ip)
         if job_id:
             ran_any = True
-            vt_score = _score_from_report(_cortex_poll_job(base_url, key, job_id))
+            vt_score = _score_from_report(_cortex_poll_job(base_url, key, job_id), "VT", "GetReport")
 
     if abuse_id:
         job_id = _cortex_run_analyzer(base_url, key, abuse_id, ip)
         if job_id:
             ran_any = True
-            abuse_score = _score_from_report(_cortex_poll_job(base_url, key, job_id))
+            abuse_score = _score_from_report(_cortex_poll_job(base_url, key, job_id), "AbuseIPDB", "Score")
 
     if not ran_any:
         return {
