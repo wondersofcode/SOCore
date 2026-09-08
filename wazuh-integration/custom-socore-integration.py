@@ -33,6 +33,60 @@ ERR_INVALID_JSON = 7
 # future legitimate one.
 EXCLUDED_GROUPS = {'sca'}
 
+# Rule groups that name a platform/subsystem, not an attack — never usable
+# as attack_type even as a last resort (this is how "Windows" was showing up
+# as the attack type for a brute-force alert: groups[0] happened to be the
+# generic OS group, not the actual threat category).
+NON_ATTACK_GROUPS = {
+    'windows', 'windows_security', 'linux', 'macos', 'solaris', 'bsd', 'aix',
+    'hp-ux', 'syslog', 'ossec', 'wazuh', 'gpg13', 'gdpr', 'pci_dss', 'hipaa',
+    'nist_800_53', 'tsc', 'audit',
+}
+
+# Known Wazuh rule groups mapped to a human-readable attack category, used
+# only when the alert carries no MITRE technique name of its own.
+GROUP_ATTACK_TYPE = {
+    'authentication_failed': 'Brute Force',
+    'authentication_failures': 'Brute Force',
+    'multiple_auth_failures': 'Brute Force',
+    'invalid_login': 'Brute Force',
+    'web_attack': 'Web Attack',
+    'attacks': 'Attack',
+    'attack': 'Attack',
+    'intrusion_detection': 'Intrusion Detection',
+    'malware': 'Malware',
+    'recon': 'Reconnaissance',
+    'scan': 'Port Scan',
+    'policy_violation': 'Policy Violation',
+    'exploit_attempt': 'Exploit Attempt',
+}
+
+
+def derive_attack_type(rule: dict, mitre_technique: str) -> str:
+    """
+    Pick a human-readable attack category — never a bare platform/OS group
+    like "windows" or "linux". Preference order:
+      1. The MITRE technique name, if the rule has one (already a clean,
+         specific label — e.g. "Brute Force").
+      2. A curated mapping from known attack-related rule groups.
+      3. The first group that isn't just a platform/compliance tag.
+      4. The rule's own description, as a last resort.
+    """
+    if mitre_technique:
+        return mitre_technique
+
+    groups = rule.get('groups') or []
+    for g in groups:
+        if g in GROUP_ATTACK_TYPE:
+            return GROUP_ATTACK_TYPE[g]
+    for g in groups:
+        if g not in NON_ATTACK_GROUPS:
+            return g.replace('_', ' ').title()
+
+    description = rule.get('description') or ''
+    return description[:60] if description else 'Unknown'
+
+
 try:
     import requests
 except ModuleNotFoundError:
@@ -112,17 +166,16 @@ def build_wazuh_event(alert: dict) -> dict:
         or '0.0.0.0'
     )
 
-    groups = rule.get('groups') or []
-    attack_type = groups[0].replace('_', ' ').title() if groups else 'Unknown'
-
     mitre_ids = mitre.get('id') or []
     mitre_techniques = mitre.get('technique') or []
+    mitre_name = mitre_techniques[0] if mitre_techniques else ''
+    attack_type = derive_attack_type(rule, mitre_name)
 
     return {
         'source_ip': source_ip,
         'attack_type': attack_type,
         'mitre_id': mitre_ids[0] if mitre_ids else '',
-        'mitre_name': mitre_techniques[0] if mitre_techniques else '',
+        'mitre_name': mitre_name,
         'rule_level': rule.get('level', 5),
         'rule_description': rule.get('description', ''),
         'country': '',

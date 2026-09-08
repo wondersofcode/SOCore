@@ -20,6 +20,13 @@ const sevRank: Record<Severity, number> = {
 
 type SortKey = 'time' | 'risk' | 'severity' | 'reputation'
 
+// Backend timestamps are "YYYY-MM-DD HH:MM:SS" (no 'T'); Date needs one to parse reliably.
+function formatAlertDate(timestamp: string): string {
+  const date = new Date(timestamp.includes('T') ? timestamp : timestamp.replace(' ', 'T'))
+  if (Number.isNaN(date.getTime())) return ''
+  return date.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })
+}
+
 // ── Reputation bar (enrichment signal — only lives on this screen) ──────────
 function RepBar({ label, score }: { label: string; score: number }) {
   const color = score >= 75 ? '#ef4444' : score >= 40 ? '#f97316' : score > 0 ? '#eab308' : '#30363d'
@@ -285,7 +292,7 @@ export default function Alerts({ onSelectAlert }: { onSelectAlert: (id: string) 
 
                       <td className={`px-3 ${rowPad} font-mono text-[#8b949e] whitespace-nowrap`}>
                         {a.timestamp.slice(11)}
-                        <span className="text-[#484f58] text-[10px] ml-1.5">18 Jan</span>
+                        <span className="text-[#484f58] text-[10px] ml-1.5">{formatAlertDate(a.timestamp)}</span>
                       </td>
 
                       <td className={`px-3 ${rowPad} whitespace-nowrap`}>
