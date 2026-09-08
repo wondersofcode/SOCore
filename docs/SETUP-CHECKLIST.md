@@ -73,6 +73,13 @@ indiki axını test et:
 - [ ] Dashboard-dan (və ya `/docs` Swagger UI-dan) bir alert-i approve et —
       dry-run IP blok + Slack bildirişi backend loglarında görünəcək
 
+## 10. Wazuh → Backend inteqrasiyası
+Wazuh→Backend inteqrasiyası mexanizm səviyyəsində tam yoxlanılıb (integratord
+tanıyır, script işləyir, backend qəbul edir). Real agent-dən gələn hücumla
+tam uçdan-uca test edilməyib, çünki hazırda Wazuh-a bağlı aktiv agent yoxdur —
+bu, demo zamanı bir qurban maşın (məs. Metasploitable) Wazuh agent-i ilə
+qoşulanda avtomatik işə düşəcək.
+
 ## Qeyd
 `socore-backend/app/actions.py`-dakı `block_ip()` təhlükəsizlik səbəbindən
 defolt olaraq **heç vaxt real block etmir** — yalnız nə edəcəyini loglayır.
