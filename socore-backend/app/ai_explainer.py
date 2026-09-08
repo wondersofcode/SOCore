@@ -67,7 +67,7 @@ def _gemini_explanation(alert: Alert, api_key: str) -> str:
     )
     try:
         genai.configure(api_key=api_key)
-        model = genai.GenerativeModel("gemini-2.5-flash", system_instruction=_SYSTEM_PROMPT)
+        model = genai.GenerativeModel("gemini-3.6-flash", system_instruction=_SYSTEM_PROMPT)
         resp = model.generate_content(facts)
         text = (resp.text or "").strip()
         return text or _mock_explanation(alert)
