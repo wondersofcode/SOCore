@@ -10,9 +10,12 @@ Swapping in the real key later needs no code change — just set the env var.
 """
 from __future__ import annotations
 
+import logging
 import os
 
 from .models import Alert
+
+logger = logging.getLogger("socore.ai_explainer")
 
 _SYSTEM_PROMPT = (
     "You are a SOC analyst assistant. In 2-3 sentences, plain English, explain "
@@ -64,12 +67,16 @@ def _gemini_explanation(alert: Alert, api_key: str) -> str:
     )
     try:
         genai.configure(api_key=api_key)
-        model = genai.GenerativeModel("gemini-1.5-flash", system_instruction=_SYSTEM_PROMPT)
+        model = genai.GenerativeModel("gemini-2.5-flash", system_instruction=_SYSTEM_PROMPT)
         resp = model.generate_content(facts)
         text = (resp.text or "").strip()
         return text or _mock_explanation(alert)
-    except Exception:
-        # Rate limits, network, bad key — never break the pipeline over this.
+    except Exception as exc:
+        # Rate limits, network, bad key, a retired model name — never break
+        # the pipeline over this, but do log it: is_live() only checks that a
+        # key is set, not that calls are actually succeeding, so a silent
+        # fallback here is otherwise invisible from the API/dashboard.
+        logger.warning("Gemini call failed, falling back to template: %s", exc)
         return _mock_explanation(alert)
 
 
