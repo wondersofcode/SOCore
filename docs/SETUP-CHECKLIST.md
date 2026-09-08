@@ -74,11 +74,9 @@ indiki axını test et:
       dry-run IP blok + Slack bildirişi backend loglarında görünəcək
 
 ## 10. Wazuh → Backend inteqrasiyası
-Wazuh→Backend inteqrasiyası mexanizm səviyyəsində tam yoxlanılıb (integratord
-tanıyır, script işləyir, backend qəbul edir). Real agent-dən gələn hücumla
-tam uçdan-uca test edilməyib, çünki hazırda Wazuh-a bağlı aktiv agent yoxdur —
-bu, demo zamanı bir qurban maşın (məs. Metasploitable) Wazuh agent-i ilə
-qoşulanda avtomatik işə düşəcək.
+Wazuh→Backend inteqrasiyası real Windows agent-dən (Brute Force/T1110,
+Multiple Windows Logon Failures qaydası) tam uçdan-uca doğrulanıb — mexanizm
+YOXLANILIB deyil, artıq REAL İŞLƏYİR.
 
 ## Qeyd
 `socore-backend/app/actions.py`-dakı `block_ip()` təhlükəsizlik səbəbindən
