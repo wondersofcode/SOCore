@@ -17,7 +17,7 @@ import logging
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
-from . import actions, ai_explainer, enrichment
+from . import actions, ai_explainer, db, enrichment
 from .correlation import correlate
 from .models import (
     AddNoteRequest,
@@ -47,10 +47,18 @@ app.add_middleware(
 
 @app.on_event("startup")
 def _startup() -> None:
+    if not db.is_configured():
+        logger.warning(
+            "DATABASE_URL not set — the backend will crash on first query. "
+            "Set DATABASE_URL in .env to your Supabase Postgres connection string."
+        )
+        return
+    db.init_schema()
     # Seed a handful of alerts so the dashboard has content before any real
-    # Wazuh event arrives. Real events append to these.
+    # Wazuh event arrives. Only runs once — if the table already has rows
+    # (a real restart with persisted data), seeding is skipped.
     store.seed(seed_alerts())
-    logger.info("Seeded %d alerts. AI live: %s", len(store.all()), ai_explainer.is_live())
+    logger.info("Seeded/verified alerts. AI live: %s", ai_explainer.is_live())
 
 
 # ── Health / status ─────────────────────────────────────────────────────────

@@ -142,6 +142,7 @@ class Case(BaseModel):
     tags: list[str] = Field(default_factory=list)
     tasks: list[CaseTask] = Field(default_factory=list)
     notes: list[CaseNote] = Field(default_factory=list)
+    alertCount: int = 0
 
 
 class CreateCaseRequest(BaseModel):
