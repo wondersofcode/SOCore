@@ -1,4 +1,5 @@
 {
+  "title": "SOCore — SOC Command Dashboard",
   "description": "Provides security analysts with a dark-themed SOC dashboard to monitor live cyber threats, track alerts, manage cases, and analyze attack simulations in real time.",
   "robots": {
     "index": false

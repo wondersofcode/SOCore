@@ -9,15 +9,15 @@ interface Integration {
   endpoint: string
 }
 
-// Mirrors the real SOCore stack. Endpoints are placeholders until the backend lands.
+// Mirrors the real SOCore stack. Endpoints point at the VM (35.238.92.96) where each service is deployed.
 const integrations: Integration[] = [
-  { name: 'Wazuh', role: 'SIEM and endpoint agents', stage: 'Detect', connected: true, detail: '14 agents reporting, 3 rulesets active', endpoint: 'wazuh.socore.local:55000' },
-  { name: 'MISP', role: 'Threat intelligence database', stage: 'Enrich', connected: true, detail: 'Feodo Tracker, URLhaus and Spamhaus DROP synced 4h ago', endpoint: 'misp.socore.local' },
-  { name: 'Cortex', role: 'Analyzer engine', stage: 'Enrich', connected: true, detail: 'VirusTotal and AbuseIPDB analyzers enabled', endpoint: 'cortex.socore.local:9001' },
-  { name: 'TheHive', role: 'Case management', stage: 'Track', connected: true, detail: 'Template SOCore-Alert, 4 custom fields mapped', endpoint: 'thehive.socore.local:9000' },
-  { name: 'Shuffle', role: 'Playbook automation', stage: 'Respond', connected: true, detail: '4 playbooks, firewall actions run in simulation mode', endpoint: 'shuffle.socore.local:3001' },
+  { name: 'Wazuh', role: 'SIEM and endpoint agents', stage: 'Detect', connected: false, detail: 'Not yet integrated — Şəxs 1-dən inteqrasiya gözlənilir', endpoint: 'wazuh.socore.local:55000' },
+  { name: 'MISP', role: 'Threat intelligence database', stage: 'Enrich', connected: true, detail: 'Feodo Tracker, URLhaus and Spamhaus DROP synced 4h ago', endpoint: '35.238.92.96:8443' },
+  { name: 'Cortex', role: 'Analyzer engine', stage: 'Enrich', connected: true, detail: 'VirusTotal and AbuseIPDB analyzers enabled', endpoint: '35.238.92.96:9001' },
+  { name: 'Case Management', role: 'Built-in case tracking', stage: 'Track', connected: true, detail: 'In-house — replaces TheHive (commercial license required)', endpoint: 'backend/api/cases' },
+  { name: 'Shuffle', role: 'Playbook automation', stage: 'Respond', connected: true, detail: '4 playbooks, firewall actions run in simulation mode', endpoint: '35.238.92.96:3001' },
   { name: 'Slack', role: 'Analyst notifications', stage: 'Respond', connected: true, detail: 'Posting to #socore-alerts', endpoint: 'hooks.slack.com/services/…' },
-  { name: 'AI explanation service', role: 'Alert reasoning', stage: 'Enrich', connected: true, detail: 'Summarises correlated signals for each alert', endpoint: 'backend/api/explain' },
+  { name: 'AI explanation service', role: 'Alert reasoning', stage: 'Enrich', connected: false, detail: 'Summarises correlated signals for each alert', endpoint: 'backend/api/explain' },
 ]
 
 const stageColor: Record<Integration['stage'], string> = {
@@ -53,7 +53,13 @@ function Row({ i }: { i: Integration }) {
 }
 
 export default function Settings() {
-  const { currentUser } = useStore()
+  const { currentUser, aiLive } = useStore()
+
+  // Every row is static except the AI explanation service, whose connection
+  // state reflects whether the backend actually has a live Gemini key.
+  const rows = integrations.map(i =>
+    i.name === 'AI explanation service' ? { ...i, connected: aiLive } : i,
+  )
 
   return (
     <div className="space-y-4 max-w-4xl">
@@ -61,10 +67,10 @@ export default function Settings() {
         <div className="px-5 py-3 border-b border-[#21262d] flex items-center justify-between">
           <span className="text-xs font-semibold text-[#e6edf3]">Pipeline connections</span>
           <span className="text-[10px] font-mono text-[#484f58]">
-            {integrations.filter(i => i.connected).length} of {integrations.length} connected
+            {rows.filter(i => i.connected).length} of {rows.length} connected
           </span>
         </div>
-        {integrations.map(i => <Row key={i.name} i={i} />)}
+        {rows.map(i => <Row key={i.name} i={i} />)}
       </div>
 
       <div className="grid grid-cols-2 gap-3">
