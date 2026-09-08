@@ -149,13 +149,16 @@ def _score_from_report(job: dict | None) -> int:
 def cortex_analyze_ip(ip: str) -> dict:
     """
     Run the VirusTotal and AbuseIPDB analyzers against an IP.
-    Returns {"vt_score": int, "abuse_score": int, "skipped": bool}.
-    Best-effort: any failure yields scores of 0 rather than raising, since a
-    slow analyzer must never block the alert pipeline.
+    Returns {"vt_score": int, "abuse_score": int, "skipped": bool, "ok": bool, "error": str|None}.
+
+    "skipped" means Cortex isn't configured at all (no URL/key set).
+    "ok": False with an "error" means Cortex WAS called but the call failed
+    (bad key, insufficient permissions, timeout, etc.) — this must never be
+    reported as a successful analysis. A 403 is not a clean scan.
     """
     base_url, key = _cortex_config()
     if not base_url or not key:
-        return {"vt_score": 0, "abuse_score": 0, "skipped": True}
+        return {"vt_score": 0, "abuse_score": 0, "skipped": True, "ok": False, "error": None}
 
     try:
         resp = requests.get(f"{base_url}/api/analyzer/type/ip", headers=_cortex_headers(key), timeout=HTTP_TIMEOUT_S)
@@ -163,25 +166,40 @@ def cortex_analyze_ip(ip: str) -> dict:
         analyzers = resp.json()
     except Exception as exc:
         logger.warning("Cortex analyzer list failed: %s", exc)
-        return {"vt_score": 0, "abuse_score": 0, "skipped": False, "error": str(exc)}
+        return {"vt_score": 0, "abuse_score": 0, "skipped": False, "ok": False, "error": str(exc)}
 
     vt_id = next((a["id"] for a in analyzers if "virustotal" in a.get("name", "").lower()), None)
     abuse_id = next((a["id"] for a in analyzers if "abuseipdb" in a.get("name", "").lower()), None)
 
+    if not vt_id and not abuse_id:
+        return {
+            "vt_score": 0, "abuse_score": 0, "skipped": False, "ok": False,
+            "error": "Cortex reachable but no VirusTotal/AbuseIPDB analyzer is enabled for this organization",
+        }
+
     vt_score = 0
     abuse_score = 0
+    ran_any = False
 
     if vt_id:
         job_id = _cortex_run_analyzer(base_url, key, vt_id, ip)
         if job_id:
+            ran_any = True
             vt_score = _score_from_report(_cortex_poll_job(base_url, key, job_id))
 
     if abuse_id:
         job_id = _cortex_run_analyzer(base_url, key, abuse_id, ip)
         if job_id:
+            ran_any = True
             abuse_score = _score_from_report(_cortex_poll_job(base_url, key, job_id))
 
-    return {"vt_score": vt_score, "abuse_score": abuse_score, "skipped": False}
+    if not ran_any:
+        return {
+            "vt_score": 0, "abuse_score": 0, "skipped": False, "ok": False,
+            "error": "Analyzer(s) found but failed to start a job (check the org's API permissions)",
+        }
+
+    return {"vt_score": vt_score, "abuse_score": abuse_score, "skipped": False, "ok": True, "error": None}
 
 
 # ── Shuffle ──────────────────────────────────────────────────────────────────
@@ -207,24 +225,38 @@ def shuffle_trigger(alert: dict) -> dict:
 def enrich_ip(ip: str, internal: bool) -> dict:
     """
     Run MISP + Cortex for an external IP and return the scores the
-    correlation engine expects. Internal addresses skip MISP (it's an
-    external threat-intel database) but can still go through Cortex.
+    correlation engine expects, plus enough detail for each source's status
+    to be reported honestly (configured-and-clean vs configured-but-failing
+    vs not-configured are three different things and must not collapse into
+    one "worked" state).
     """
-    result = {"vt_score": 0, "abuse_score": 0, "misp_hit": False, "misp_skipped": True, "cortex_skipped": True}
+    result = {
+        "vt_score": 0, "abuse_score": 0,
+        "misp_hit": False, "misp_skipped": True, "misp_error": None,
+        "cortex_skipped": True, "cortex_ok": False, "cortex_error": None,
+    }
 
+    misp_boost = 0
     if not internal and is_misp_configured():
         misp = misp_lookup_ip(ip)
         result["misp_hit"] = misp.get("hit", False)
         result["misp_skipped"] = misp.get("skipped", True)
-        # A MISP hit is a strong external signal — reflect it even if Cortex
-        # analyzers come back clean or unconfigured.
+        result["misp_error"] = misp.get("error")
+        # A MISP hit is a strong external signal in its own right — it feeds
+        # the overall abuse_score used for risk scoring, but it is NOT a
+        # Cortex/AbuseIPDB result and must be reported under MISP, not Cortex.
         if result["misp_hit"]:
-            result["abuse_score"] = max(result["abuse_score"], 85)
+            misp_boost = 85
 
     if is_cortex_configured():
         cortex = cortex_analyze_ip(ip)
         result["cortex_skipped"] = cortex.get("skipped", True)
-        result["vt_score"] = max(result["vt_score"], cortex.get("vt_score", 0))
-        result["abuse_score"] = max(result["abuse_score"], cortex.get("abuse_score", 0))
+        result["cortex_ok"] = cortex.get("ok", False)
+        result["cortex_error"] = cortex.get("error")
+        if result["cortex_ok"]:
+            result["vt_score"] = cortex.get("vt_score", 0)
+            result["abuse_score"] = cortex.get("abuse_score", 0)
 
+    # The combined score used for risk scoring can reflect both signals...
+    result["combined_abuse_score"] = max(result["abuse_score"], misp_boost)
     return result

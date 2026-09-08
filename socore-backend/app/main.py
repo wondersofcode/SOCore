@@ -82,25 +82,35 @@ def ingest(event: WazuhEvent) -> Alert:
     if event.vt_score is None and event.abuse_score is None:
         enrich_result = enrichment.enrich_ip(event.source_ip, internal)
         event.vt_score = enrich_result["vt_score"]
-        event.abuse_score = enrich_result["abuse_score"]
+        event.abuse_score = enrich_result["combined_abuse_score"]
 
     alert = correlate(event, store.next_id())
     alert.aiExplanation = ai_explainer.explain(alert)
 
-    # Reflect what enrichment actually did, not just what the scores imply —
-    # "skipped" (not configured) reads differently from "clean" (checked, no hit).
+    # Reflect what enrichment actually did, not just what the scores imply.
+    # "skipped" = not configured, "error" = configured but the call failed
+    # (e.g. a 403 from a mis-scoped API key), "hit"/"clean" = it really ran.
     if enrich_result is not None:
         for src in alert.sources:
             if src.name == "MISP":
                 if enrich_result["misp_skipped"]:
-                    src.status, src.detail = "skipped", "MISP not configured" if not internal else "Internal address — not submitted"
+                    src.status = "skipped"
+                    src.detail = "Internal address — not submitted" if internal else "MISP not configured"
+                elif enrich_result["misp_error"]:
+                    src.status = "skipped"
+                    src.detail = f"MISP error: {enrich_result['misp_error']}"
                 elif enrich_result["misp_hit"]:
                     src.status, src.detail = "hit", "Address appears in an active IOC event"
                 else:
                     src.status, src.detail = "clean", "No matching IOC event"
             if src.name == "Cortex":
-                src.status = "skipped" if enrich_result["cortex_skipped"] else ("hit" if max(event.vt_score, event.abuse_score) >= 40 else "clean")
-                src.detail = "Cortex not configured" if enrich_result["cortex_skipped"] else "Analyzers completed"
+                if enrich_result["cortex_skipped"]:
+                    src.status, src.detail = "skipped", "Cortex not configured"
+                elif not enrich_result["cortex_ok"]:
+                    src.status, src.detail = "skipped", f"Cortex error: {enrich_result['cortex_error']}"
+                else:
+                    src.status = "hit" if max(enrich_result["vt_score"], enrich_result["abuse_score"]) >= 40 else "clean"
+                    src.detail = "Analyzers completed"
 
     store.add(alert)
 
