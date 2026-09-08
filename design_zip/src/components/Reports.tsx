@@ -1,6 +1,28 @@
 import { useStore } from '../store'
-import { simulations } from '../data'
+import { simulations, type Alert } from '../data'
 import { riskColor } from './Shared'
+
+// Backend timestamps are "YYYY-MM-DD HH:MM:SS" (no 'T'); Date needs one to parse reliably.
+function parseTimestamp(timestamp: string): Date {
+  return new Date(timestamp.includes('T') ? timestamp : timestamp.replace(' ', 'T'))
+}
+
+// Spans the earliest-to-latest alert in the current set, rather than a fixed
+// mock window — "this shift" is whatever range the loaded alerts cover.
+function formatShiftWindow(alerts: Alert[]): string {
+  const times = alerts
+    .map(a => parseTimestamp(a.timestamp))
+    .filter(d => !Number.isNaN(d.getTime()))
+  if (times.length === 0) return 'No alerts this shift'
+
+  const earliest = new Date(Math.min(...times.map(d => d.getTime())))
+  const latest = new Date(Math.max(...times.map(d => d.getTime())))
+  const dateLabel = latest.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+  const fmtTime = (d: Date) =>
+    d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'UTC' })
+
+  return `${dateLabel} · ${fmtTime(earliest)}–${fmtTime(latest)} UTC`
+}
 
 function Metric({ label, value, note, color = '#e6edf3' }: { label: string; value: string; note: string; color?: string }) {
   return (
@@ -42,7 +64,7 @@ export default function Reports() {
       <div className="bg-[#161b22] border border-[#21262d] rounded-lg px-5 py-4">
         <div className="flex items-baseline justify-between mb-2">
           <span className="text-sm text-[#e6edf3]">Shift summary</span>
-          <span className="text-[10px] font-mono text-[#484f58]">18 Jan 2024 · 07:00–10:00 UTC</span>
+          <span className="text-[10px] font-mono text-[#484f58]">{formatShiftWindow(alerts)}</span>
         </div>
         <p className="text-xs text-[#8b949e] leading-relaxed max-w-3xl">
           {total} alerts were raised this shift, {external} of them from outside the network.
