@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Routes, Route } from 'react-router-dom'
 import Dashboard from './components/Dashboard'
 import Alerts from './components/Alerts'
 import AlertDetail from './components/AlertDetail'
@@ -10,6 +11,7 @@ import Reports from './components/Reports'
 import Settings from './components/Settings'
 import SearchResults from './components/SearchResults'
 import Login from './components/Login'
+import Landing from './pages/Landing'
 import { StoreProvider, useStore } from './store'
 import { AuthProvider, useAuth } from './lib/AuthContext'
 
@@ -310,10 +312,19 @@ function Gate() {
   )
 }
 
-export default function App() {
+function AuthenticatedApp() {
   return (
     <AuthProvider>
       <Gate />
     </AuthProvider>
+  )
+}
+
+export default function App() {
+  return (
+    <Routes>
+      <Route path="/" element={<Landing />} />
+      <Route path="/app" element={<AuthenticatedApp />} />
+    </Routes>
   )
 }
