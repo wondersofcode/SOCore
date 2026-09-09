@@ -19,35 +19,30 @@
 </group>
 
 <!--
-  A single interactive Windows unlock creates two linked-token "account
-  changed" events (4738) a few hundred ms apart even though nothing was
-  actually changed — see wazuh-integration/README.md. Same match
-  conditions as the base rule (0580-win-security_rules.xml), plus
-  <ignore>5</ignore> so the second copy within 5s is suppressed at the
-  source instead of reaching custom-socore-integration.py as a duplicate.
+  Rule 60110 ("User account changed", 4738) fires twice per interactive
+  Windows unlock — see wazuh-integration/README.md for why. Two attempts at
+  fixing this at the rule level did not work and are not repeated here:
 
-  <ignore> alone keys on same_source_ip by default — these alerts carry
-  no srcip (a local Windows security event, not network-sourced), so a
-  bare <ignore> never found "the same source" and never suppressed
-  anything (confirmed: both linked-token copies still went out, 225ms
-  apart, after the first version of this override). <same_field>
-  agent.id</same_field> makes the correlation key explicit instead of
-  relying on a default that doesn't apply here.
+  1. Bare <ignore>5</ignore>: relies on <ignore>'s default same_source_ip
+     key. These alerts carry no srcip (a local Windows security event, not
+     network-sourced), so it never found "the same source" — both copies
+     still went out 225ms apart.
+  2. <ignore>5</ignore> + <same_field>agent.id</same_field>: rejected at
+     load time — analysisd requires <same_field> to be paired with
+     <if_matched_sid>/frequency, it isn't valid as a plain <ignore>
+     modifier ("Invalid use of frequency/context options. Missing
+     if_matched on rule '60110'.").
+
+  Lowering rule 60110's own level below the <level>7</level> forwarding
+  threshold isn't right either — it's a real MITRE T1098 (Account
+  Manipulation) detection when it fires for an actual attacker action, so
+  blanket-suppressing it would blind us to genuine account tampering, not
+  just this benign per-logon artifact.
+
+  Deduping is instead done in custom-socore-integration.py itself (see
+  DEDUP_WINDOW_S there), where the exact behavior is fully under our
+  control and verifiable by reading the code, rather than depending on
+  Wazuh rule-engine correlation semantics that twice didn't work as
+  expected. Rule 60110 here is intentionally left at its base-ruleset
+  definition (no override).
 -->
-<group name="local,">
-
-  <rule id="60110" level="8" overwrite="yes">
-    <if_sid>60103</if_sid>
-    <field name="win.system.eventID">^628$|^642$|^685$|^4738$|^4781$</field>
-    <description>User account changed</description>
-    <options>no_full_log</options>
-    <same_field>agent.id</same_field>
-    <ignore>5</ignore>
-    <group>account_changed,</group>
-    <group>pci_dss_8.1.2,pci_dss_10.2.5,gpg13_7.10,gdpr_IV_35.7.d,gdpr_IV_32.2,hipaa_164.312.a.2.I,hipaa_164.312.a.2.II,hipaa_164.312.b,nist_800_53_AC.2,nist_800_53_IA.4,nist_800_53_AU.14,nist_800_53_AC.7,tsc_CC6.8,tsc_CC7.2,tsc_CC7.3,</group>
-    <mitre>
-      <id>T1098</id>
-    </mitre>
-  </rule>
-
-</group>

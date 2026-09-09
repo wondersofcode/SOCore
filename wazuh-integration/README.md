@@ -17,8 +17,8 @@ These two files live at `/var/ossec/integrations/` inside the
 `local_rules.xml` in this folder is a copy of what's deployed at
 `/var/ossec/etc/rules/local_rules.xml` inside the manager container (a
 separate persistent volume, `wazuh_etc`, from the integrations one
-above) — kept here mainly so the rule-60110 override is visible and
-reviewable in git, alongside the integration script it complements.
+above) — kept here so its (currently unmodified) state and the history
+of what was tried against rule 60110 are visible in git.
 
 Both need `root:wazuh` ownership and `750` permissions, matching Wazuh's
 built-in integrations (`shuffle`, `slack`, etc.) in the same directory.
@@ -66,13 +66,29 @@ changed" audit events (event ID 4738, Wazuh rule 60110 → MITRE T1098
 Account Manipulation) a few hundred ms apart — one per linked UAC token
 (elevated + filtered), even though nothing about the account actually
 changed. Both independently clear the `<level>7</level>` threshold, so
-one physical unlock produced two identical-looking alerts.
+one physical unlock produced two identical-looking alerts, which in
+turn produced two Slack notifications from `socore-backend`.
 
-Fixed at the Wazuh rule level, not in this script: `local_rules.xml`
-overrides rule 60110 (`overwrite="yes"`, same match conditions as the
-base ruleset's `0580-win-security_rules.xml`) adding `<ignore>5</ignore>`
-— repeats of the same rule for the same agent within 5 seconds are
-suppressed at the source, so only the first reaches the integration
-(and 5s is well under the ~4-minute gap between two genuinely separate
-unlocks, so real events a few seconds apart still both alert if the
-attack group differs).
+Two attempts at fixing this at the Wazuh rule level did not work:
+
+1. Overriding rule 60110 with `<ignore>5</ignore>` — relies on
+   `<ignore>`'s default `same_source_ip` key, but these alerts carry no
+   `srcip` (a local Windows security event, not network-sourced), so it
+   never found "the same source" and both copies still went out.
+2. Adding `<same_field>agent.id</same_field>` to make the key explicit
+   — rejected at config-load time: `<same_field>` is only valid paired
+   with `<if_matched_sid>`/frequency, not as a plain `<ignore>` modifier.
+
+Lowering rule 60110's level below the forwarding threshold isn't right
+either — it's a real detection when it fires for genuine account
+tampering, so blanket-suppressing it would blind us to that, not just
+this benign per-logon artifact.
+
+`local_rules.xml` is left with rule 60110 at its unmodified base-ruleset
+definition. The dedup instead lives in `custom-socore-integration.py`
+(`is_duplicate()`, `DEDUP_WINDOW_S`): a small state file, keyed by
+`(rule id, agent id)` and guarded by a file lock (two invocations 225ms
+apart is exactly the race this needs to survive), drops a repeat of the
+same rule/agent within 5 seconds — long enough to catch the linked-token
+pair, short enough that two genuinely separate real detections of the
+same rule on the same agent still both alert.

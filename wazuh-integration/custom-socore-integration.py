@@ -15,9 +15,11 @@
 #   6 - Alert file does not exist
 #   7 - Error getting json_alert
 
+import fcntl
 import json
 import os
 import sys
+import time
 
 ERR_NO_REQUEST_MODULE = 1
 ERR_BAD_ARGUMENTS = 2
@@ -41,6 +43,17 @@ EXCLUDED_GROUPS = {'sca'}
 # of these event IDs still gets through. Failed logons (4625) are
 # deliberately absent — those always pass.
 NORMAL_ACTIVITY_EVENT_IDS = {'4624', '4634', '4801', '4802'}
+
+# Some Windows security events legitimately fire more than once for one
+# physical action — e.g. rule 60110 ("User account changed", 4738) fires
+# twice per interactive unlock, once per UAC linked token, ~0.1-0.3s apart,
+# with nothing actually changed either time. Wazuh's own <ignore> rule
+# mechanism doesn't help here (see local_rules.xml for why two attempts at
+# fixing it there didn't work), so it's deduped here instead: any repeat of
+# the same (rule id, agent) within this many seconds is dropped. Deliberately
+# short — long enough to catch a same-action duplicate, short enough that two
+# genuinely separate real detections of the same rule/agent still both alert.
+DEDUP_WINDOW_S = 5
 
 # Rule groups that name a platform/subsystem, not an attack — never usable
 # as attack_type even as a last resort (this is how "Windows" was showing up
@@ -116,6 +129,7 @@ ALERT_INDEX = 1
 HOOK_URL_INDEX = 3
 
 LOG_FILE = f'{pwd}/logs/integrations.log'
+DEDUP_STATE_FILE = f'{pwd}/logs/socore_dedup_state.json'
 
 
 def main(args):
@@ -165,6 +179,12 @@ def process_args(args) -> None:
             debug(f'# Skipping alert: routine Windows activity (event ID {event_id}), no attack group present')
             return
 
+    rule_id = str((json_alert.get('rule', {}) or {}).get('id', ''))
+    agent_id = str((json_alert.get('agent', {}) or {}).get('id', ''))
+    if rule_id and is_duplicate(rule_id, agent_id):
+        debug(f'# Skipping alert: duplicate of rule {rule_id} for agent {agent_id} within {DEDUP_WINDOW_S}s')
+        return
+
     event = build_wazuh_event(json_alert)
     debug(f'# Sending event: {event}')
 
@@ -204,6 +224,41 @@ def build_wazuh_event(alert: dict) -> dict:
         'raw': alert.get('full_log') or json.dumps(alert),
         'timestamp': alert.get('timestamp'),
     }
+
+
+def is_duplicate(rule_id: str, agent_id: str) -> bool:
+    """
+    True if (rule_id, agent_id) was already forwarded within DEDUP_WINDOW_S
+    seconds. Wazuh invokes this script as a fresh process per alert, so
+    there's no in-memory state to check against — a small state file does
+    the job instead, with an exclusive file lock around the read-check-write
+    so two invocations landing at nearly the same instant (the exact case
+    this exists for) can't both read "not seen yet" before either writes.
+    """
+    key = f'{rule_id}:{agent_id}'
+    now = time.time()
+    lock_path = DEDUP_STATE_FILE + '.lock'
+    with open(lock_path, 'a') as lock_file:
+        fcntl.flock(lock_file, fcntl.LOCK_EX)
+        try:
+            try:
+                with open(DEDUP_STATE_FILE) as f:
+                    state = json.load(f)
+            except (FileNotFoundError, json.JSONDecodeError):
+                state = {}
+
+            last_seen = state.get(key)
+            duplicate = last_seen is not None and (now - last_seen) < DEDUP_WINDOW_S
+
+            # Prune anything outside the window so the file doesn't grow forever.
+            state = {k: t for k, t in state.items() if now - t < DEDUP_WINDOW_S}
+            state[key] = now
+            with open(DEDUP_STATE_FILE, 'w') as f:
+                json.dump(state, f)
+
+            return duplicate
+        finally:
+            fcntl.flock(lock_file, fcntl.LOCK_UN)
 
 
 def send_event(event: dict, hook_url: str) -> None:
