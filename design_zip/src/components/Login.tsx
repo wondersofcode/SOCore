@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../lib/AuthContext'
 
 type Mode = 'signin' | 'signup' | 'reset'
@@ -47,6 +48,7 @@ function MiniAlertRow({ sev, title, color }: { sev: string; title: string; color
 }
 
 export default function Login() {
+  const navigate = useNavigate()
   const { signIn, signUp, resetPassword } = useAuth()
   const [mode, setMode] = useState<Mode>('signin')
   const [email, setEmail] = useState('')
@@ -116,7 +118,9 @@ export default function Login() {
         />
 
         <div className="relative z-[1] hero-in" style={{ animationDelay: '.02s' }}>
-          <img src="/logo.png" alt="SOCore" className="h-6 w-auto" />
+          <button onClick={() => navigate('/')} className="transition-opacity hover:opacity-80" aria-label="Back to SOCore home">
+            <img src="/logo.png" alt="SOCore" className="h-6 w-auto" />
+          </button>
         </div>
 
         <div className="relative z-[1] max-w-[440px]">
@@ -168,7 +172,9 @@ export default function Login() {
       <div className="flex-1 flex items-center justify-center px-6 py-12">
         <div className="w-full max-w-[380px]">
           <div className="hero-in flex lg:hidden justify-center mb-8" style={{ animationDelay: '.02s' }}>
-            <img src="/logo.png" alt="SOCore" className="h-7 w-auto" />
+            <button onClick={() => navigate('/')} className="transition-opacity hover:opacity-80" aria-label="Back to SOCore home">
+              <img src="/logo.png" alt="SOCore" className="h-7 w-auto" />
+            </button>
           </div>
 
           <div className="hero-in mb-8" style={{ animationDelay: '.1s' }}>
