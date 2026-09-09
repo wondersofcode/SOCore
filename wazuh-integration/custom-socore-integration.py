@@ -33,6 +33,15 @@ ERR_INVALID_JSON = 7
 # future legitimate one.
 EXCLUDED_GROUPS = {'sca'}
 
+# Windows Security event IDs for routine, expected user activity — a
+# successful logon (4624), logoff (4634), or workstation unlock (4801) /
+# lock (4802). These alone are not a signal worth an analyst's attention;
+# only filtered when the rule ALSO carries no real attack group (see
+# ATTACK_GROUPS below), so a genuine correlation that happens to touch one
+# of these event IDs still gets through. Failed logons (4625) are
+# deliberately absent — those always pass.
+NORMAL_ACTIVITY_EVENT_IDS = {'4624', '4634', '4801', '4802'}
+
 # Rule groups that name a platform/subsystem, not an attack — never usable
 # as attack_type even as a last resort (this is how "Windows" was showing up
 # as the attack type for a brute-force alert: groups[0] happened to be the
@@ -60,6 +69,12 @@ GROUP_ATTACK_TYPE = {
     'policy_violation': 'Policy Violation',
     'exploit_attempt': 'Exploit Attempt',
 }
+
+# Rule groups that name a genuine threat category rather than routine
+# activity — reusing GROUP_ATTACK_TYPE's keys, since that's already the
+# curated list of "this group means something happened" tags. Presence of
+# any of these always overrides NORMAL_ACTIVITY_EVENT_IDS filtering below.
+ATTACK_GROUPS = set(GROUP_ATTACK_TYPE)
 
 
 def derive_attack_type(rule: dict, mitre_technique: str) -> str:
@@ -143,6 +158,12 @@ def process_args(args) -> None:
     if excluded:
         debug(f'# Skipping alert: excluded group(s) {excluded} (not an attack)')
         return
+
+    if not (groups & ATTACK_GROUPS):
+        event_id = str((((json_alert.get('data', {}) or {}).get('win', {}) or {}).get('system', {}) or {}).get('eventID', ''))
+        if event_id in NORMAL_ACTIVITY_EVENT_IDS:
+            debug(f'# Skipping alert: routine Windows activity (event ID {event_id}), no attack group present')
+            return
 
     event = build_wazuh_event(json_alert)
     debug(f'# Sending event: {event}')

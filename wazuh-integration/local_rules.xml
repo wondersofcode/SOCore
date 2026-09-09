@@ -1,0 +1,44 @@
+<!-- Local rules -->
+
+<!-- Modify it at your will. -->
+<!-- Copyright (C) 2015, Wazuh Inc. -->
+
+<!-- Example -->
+<group name="local,syslog,sshd,">
+
+  <!--
+  Dec 10 01:02:02 host sshd[1234]: Failed none for root from 1.1.1.1 port 1066 ssh2
+  -->
+  <rule id="100001" level="5">
+    <if_sid>5716</if_sid>
+    <srcip>1.1.1.1</srcip>
+    <description>sshd: authentication failed from IP 1.1.1.1.</description>
+    <group>authentication_failed,pci_dss_10.2.4,pci_dss_10.2.5,</group>
+  </rule>
+
+</group>
+
+<!--
+  A single interactive Windows unlock creates two linked-token "account
+  changed" events (4738) a few hundred ms apart even though nothing was
+  actually changed — see wazuh-integration/README.md. Same match
+  conditions as the base rule (0580-win-security_rules.xml), plus
+  <ignore>5</ignore> so the second copy within 5s is suppressed at the
+  source instead of reaching custom-socore-integration.py as a duplicate.
+-->
+<group name="local,">
+
+  <rule id="60110" level="8" overwrite="yes">
+    <if_sid>60103</if_sid>
+    <field name="win.system.eventID">^628$|^642$|^685$|^4738$|^4781$</field>
+    <description>User account changed</description>
+    <options>no_full_log</options>
+    <ignore>5</ignore>
+    <group>account_changed,</group>
+    <group>pci_dss_8.1.2,pci_dss_10.2.5,gpg13_7.10,gdpr_IV_35.7.d,gdpr_IV_32.2,hipaa_164.312.a.2.I,hipaa_164.312.a.2.II,hipaa_164.312.b,nist_800_53_AC.2,nist_800_53_IA.4,nist_800_53_AU.14,nist_800_53_AC.7,tsc_CC6.8,tsc_CC7.2,tsc_CC7.3,</group>
+    <mitre>
+      <id>T1098</id>
+    </mitre>
+  </rule>
+
+</group>
