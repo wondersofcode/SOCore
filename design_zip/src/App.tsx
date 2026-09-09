@@ -96,13 +96,7 @@ function AppShell() {
       >
         {/* Logo */}
         <div className="flex items-center gap-3 px-4 py-4 border-b border-[#21262d] h-14">
-          <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0"
-            style={{ background: 'linear-gradient(135deg, #00d4ff20, #00d4ff40)', border: '1px solid #00d4ff40', boxShadow: '0 0 12px #00d4ff20' }}>
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-              <path d="M7 1L13 4V7C13 10.3 10.4 13.1 7 13.9 3.6 13.1 1 10.3 1 7V4L7 1Z" stroke="#00d4ff" strokeWidth="1.2" strokeLinejoin="round" />
-              <path d="M4.5 7l1.5 1.5L9.5 5" stroke="#00d4ff" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-          </div>
+          <img src="/logo-mark.png" alt="SOCore" className="w-7 h-7 shrink-0" />
           {!collapsed && (
             <div className="overflow-hidden">
               <div className="text-[#e6edf3] font-bold text-sm tracking-wide">SOCore</div>

@@ -3,6 +3,8 @@ import { useAuth } from '../lib/AuthContext'
 
 type Mode = 'signin' | 'signup' | 'reset'
 
+const PLEX = { fontFamily: "'IBM Plex Sans', system-ui, sans-serif" }
+
 export default function Login() {
   const { signIn, signUp, resetPassword } = useAuth()
   const [mode, setMode] = useState<Mode>('signin')
@@ -44,30 +46,11 @@ export default function Login() {
   }
 
   return (
-    <div className="relative min-h-screen bg-[#0d1117] grid-bg flex items-center justify-center px-4 overflow-hidden">
-      {/* Ambient glow orbs for depth */}
-      <div
-        className="pointer-events-none absolute w-[480px] h-[480px] rounded-full"
-        style={{ top: '-140px', left: '-120px', background: 'radial-gradient(circle, #00d4ff14, transparent 70%)' }}
-      />
-      <div
-        className="pointer-events-none absolute w-[420px] h-[420px] rounded-full"
-        style={{ bottom: '-160px', right: '-100px', background: 'radial-gradient(circle, #a855f712, transparent 70%)' }}
-      />
-
-      <div className="relative w-full max-w-sm">
+    <div className="min-h-screen bg-[#0d1117] flex items-center justify-center px-4" style={PLEX}>
+      <div className="w-full max-w-sm">
         {/* Brand */}
         <div className="flex flex-col items-center mb-8">
-          <div
-            className="glow-card w-14 h-14 rounded-2xl flex items-center justify-center mb-4"
-            style={{ background: 'linear-gradient(135deg, #00d4ff20, #00d4ff40)', border: '1px solid #00d4ff40' }}
-          >
-            <svg width="26" height="26" viewBox="0 0 14 14" fill="none">
-              <path d="M7 1L13 4V7C13 10.3 10.4 13.1 7 13.9 3.6 13.1 1 10.3 1 7V4L7 1Z" stroke="#00d4ff" strokeWidth="1.1" strokeLinejoin="round" />
-              <path d="M4.5 7l1.5 1.5L9.5 5" stroke="#00d4ff" strokeWidth="1.1" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-          </div>
-          <div className="text-[#e6edf3] font-bold text-lg tracking-wide">SOCore</div>
+          <img src="/logo.png" alt="SOCore" className="w-56 h-auto mb-4" />
           <div className="text-[10px] text-[#484f58] font-mono uppercase tracking-[0.25em] mt-0.5">Security Operations Center</div>
           <div className="flex items-center gap-1.5 mt-3 text-[9px] font-mono text-[#22c55e] uppercase tracking-widest">
             <span className="w-1.5 h-1.5 rounded-full bg-[#22c55e] pulse-live" />
@@ -76,10 +59,7 @@ export default function Login() {
         </div>
 
         {/* Card */}
-        <div
-          className="bg-[#161b22] border border-[#21262d] rounded-xl p-6"
-          style={{ boxShadow: '0 20px 60px -20px rgba(0,0,0,0.6), 0 0 0 1px rgba(0,212,255,0.04)' }}
-        >
+        <div className="bg-[#0d1117] border border-[#21262d] p-6">
           <div className="text-sm font-semibold text-[#e6edf3] mb-1">
             {mode === 'signin' ? 'Sign in' : mode === 'signup' ? 'Create an account' : 'Reset password'}
           </div>
@@ -103,7 +83,7 @@ export default function Login() {
                   value={email}
                   onChange={e => setEmail(e.target.value)}
                   placeholder="you@company.com"
-                  className="w-full bg-[#0d1117] border border-[#21262d] rounded-lg pl-9 pr-3 py-2 text-sm text-[#e6edf3] placeholder-[#484f58] focus:outline-none focus:border-[#00d4ff40] transition-colors"
+                  className="w-full bg-[#0d1117] border border-[#21262d] pl-9 pr-3 py-2 text-sm text-[#e6edf3] placeholder-[#484f58] focus:outline-none focus:border-[#2563eb40] transition-colors"
                 />
               </div>
             </div>
@@ -123,23 +103,23 @@ export default function Login() {
                     value={password}
                     onChange={e => setPassword(e.target.value)}
                     placeholder="••••••••"
-                    className="w-full bg-[#0d1117] border border-[#21262d] rounded-lg pl-9 pr-3 py-2 text-sm text-[#e6edf3] placeholder-[#484f58] focus:outline-none focus:border-[#00d4ff40] transition-colors"
+                    className="w-full bg-[#0d1117] border border-[#21262d] pl-9 pr-3 py-2 text-sm text-[#e6edf3] placeholder-[#484f58] focus:outline-none focus:border-[#2563eb40] transition-colors"
                   />
                 </div>
               </div>
             )}
 
             {error && (
-              <div className="text-xs text-[#ef4444] bg-[#ef444410] border border-[#ef444430] rounded-lg px-3 py-2">{error}</div>
+              <div className="text-xs text-[#ef4444] bg-[#ef444410] border border-[#ef444430] px-3 py-2">{error}</div>
             )}
             {message && (
-              <div className="text-xs text-[#22c55e] bg-[#22c55e10] border border-[#22c55e30] rounded-lg px-3 py-2">{message}</div>
+              <div className="text-xs text-[#22c55e] bg-[#22c55e10] border border-[#22c55e30] px-3 py-2">{message}</div>
             )}
 
             <button
               type="submit"
               disabled={busy}
-              className="w-full py-2.5 rounded-lg bg-[#00d4ff15] border border-[#00d4ff40] text-[#00d4ff] text-sm font-semibold hover:bg-[#00d4ff25] hover:shadow-[0_0_16px_#00d4ff30] transition-all disabled:opacity-40"
+              className="w-full py-2.5 bg-[#e6edf3] text-[#0d1117] text-sm font-semibold hover:bg-white transition-colors disabled:opacity-40"
             >
               {busy ? 'Please wait…' : mode === 'signin' ? 'Sign in' : mode === 'signup' ? 'Create account' : 'Send reset link'}
             </button>
@@ -151,12 +131,12 @@ export default function Login() {
                 <button onClick={() => switchMode('reset')} className="text-[#6b7280] hover:text-[#e6edf3] transition-colors">
                   Forgot password?
                 </button>
-                <button onClick={() => switchMode('signup')} className="text-[#00d4ff] hover:underline">
+                <button onClick={() => switchMode('signup')} className="text-[#2563eb] hover:underline">
                   Create account
                 </button>
               </>
             ) : (
-              <button onClick={() => switchMode('signin')} className="text-[#00d4ff] hover:underline mx-auto">
+              <button onClick={() => switchMode('signin')} className="text-[#2563eb] hover:underline mx-auto">
                 Back to sign in
               </button>
             )}

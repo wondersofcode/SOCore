@@ -1,5 +1,6 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
 @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600;700&display=swap');
 
 @import 'tailwindcss';
 
@@ -110,6 +111,14 @@ body {
     linear-gradient(rgba(0, 212, 255, 0.03) 1px, transparent 1px),
     linear-gradient(90deg, rgba(0, 212, 255, 0.03) 1px, transparent 1px);
   background-size: 32px 32px;
+}
+
+/* Scattered dot texture for closing-CTA decoration */
+.dots-texture {
+  background-image: radial-gradient(rgba(230, 237, 243, 0.5) 1px, transparent 1px);
+  background-size: 9px 9px;
+  -webkit-mask-image: radial-gradient(circle, black 35%, transparent 72%);
+  mask-image: radial-gradient(circle, black 35%, transparent 72%);
 }
 
 /* Recharts custom */
