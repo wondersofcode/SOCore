@@ -25,8 +25,10 @@ from .models import (
     ApprovalDecision,
     Case,
     CreateCaseRequest,
+    Event,
     UpdateCaseRequest,
     WazuhEvent,
+    now_full,
 )
 from .seed import seed_alerts
 from .store import store
@@ -90,6 +92,25 @@ def ingest(event: WazuhEvent) -> Alert:
     """
     from .correlation import _is_internal  # local import avoids a cycle at module load
 
+    # Persist the raw Wazuh event first, independent of whatever it becomes.
+    # This is the append-only history layer: every event that reaches this
+    # endpoint is recorded here even if it's later filtered out of the
+    # alert pipeline (not all events become alerts).
+    event_id = store.next_event_id()
+    store.add_event(
+        Event(
+            id=event_id,
+            timestamp=event.timestamp or now_full(),
+            sourceIP=event.source_ip,
+            ruleId=event.rule_id,
+            ruleLevel=event.rule_level,
+            ruleDescription=event.rule_description,
+            raw=event.raw,
+            agentId=event.agent_id,
+            agentName=event.agent_name,
+        )
+    )
+
     internal = _is_internal(event.source_ip, event.country)
     enrich_result = None
     if event.vt_score is None and event.abuse_score is None:
@@ -98,6 +119,7 @@ def ingest(event: WazuhEvent) -> Alert:
         event.abuse_score = enrich_result["combined_abuse_score"]
 
     alert = correlate(event, store.next_id())
+    alert.sourceEventId = event_id
     alert.aiExplanation = ai_explainer.explain(alert)
 
     # Reflect what enrichment actually did, not just what the scores imply.
@@ -127,6 +149,7 @@ def ingest(event: WazuhEvent) -> Alert:
                     src.detail = "Analyzers completed"
 
     store.add(alert)
+    store.link_event_to_alert(event_id, alert.id)
 
     # Notifications are low-risk, so they run without approval. High-risk
     # alerts are handed to the Shuffle playbook instead — it posts its own
@@ -160,6 +183,21 @@ def get_alert(alert_id: str) -> Alert:
 @app.get("/api/pending", response_model=list[Alert])
 def list_pending() -> list[Alert]:
     return store.pending()
+
+
+# ── Raw event history — independent of whatever Alert an event became ──────
+@app.get("/api/events", response_model=list[Event])
+def list_events(limit: int = 50, offset: int = 0) -> list[Event]:
+    limit = max(1, min(limit, 200))
+    return store.all_events(limit=limit, offset=offset)
+
+
+@app.get("/api/events/{event_id}", response_model=Event)
+def get_event(event_id: str) -> Event:
+    event = store.get_event(event_id)
+    if event is None:
+        raise HTTPException(status_code=404, detail="Event not found")
+    return event
 
 
 @app.get("/api/decisions")

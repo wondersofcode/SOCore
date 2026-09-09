@@ -48,6 +48,23 @@ export interface Alert {
   proposedAction: ProposedAction | null
   approvalStatus: ApprovalStatus
   sources: EnrichmentSource[]
+  /** The raw Wazuh event this alert was scored from, if any (seed alerts have none). */
+  sourceEventId?: string | null
+}
+
+/** A raw, unscored Wazuh event — recorded independently of whatever Alert it becomes. */
+export interface WazuhRawEvent {
+  id: string
+  timestamp: string
+  sourceIP: string
+  ruleId: string
+  ruleLevel: number
+  ruleDescription: string
+  raw: string
+  agentId: string
+  agentName: string
+  /** Set once the correlation engine turns this event into an Alert. Not every event is. */
+  alertId: string | null
 }
 
 /** Alert fields authored by hand; the rest are derived below. */

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Routes, Route } from 'react-router-dom'
 import Dashboard from './components/Dashboard'
+import Events from './components/Events'
 import Alerts from './components/Alerts'
 import AlertDetail from './components/AlertDetail'
 import MitreMatrix from './components/MitreMatrix'
@@ -15,13 +16,18 @@ import Landing from './pages/Landing'
 import { StoreProvider, useStore } from './store'
 import { AuthProvider, useAuth } from './lib/AuthContext'
 
-type Screen = 'dashboard' | 'alerts' | 'approvals' | 'cases' | 'simulations' | 'attack' | 'reports' | 'settings'
+type Screen = 'dashboard' | 'events' | 'alerts' | 'approvals' | 'cases' | 'simulations' | 'attack' | 'reports' | 'settings'
 
 const NAV_ITEMS: { id: Screen; label: string; icon: React.ReactNode }[] = [
   {
     id: 'dashboard',
     label: 'Dashboard',
     icon: <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"><rect x="1" y="1" width="6" height="6" rx="1" /><rect x="9" y="1" width="6" height="6" rx="1" /><rect x="1" y="9" width="6" height="6" rx="1" /><rect x="9" y="9" width="6" height="6" rx="1" /></svg>,
+  },
+  {
+    id: 'events',
+    label: 'Events',
+    icon: <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"><path d="M1.5 8h3l1.5-4 3 8 1.5-4h3" /></svg>,
   },
   {
     id: 'alerts',
@@ -65,6 +71,7 @@ function AppShell() {
   const [collapsed, setCollapsed] = useState(false)
   const [isLive, setIsLive] = useState(true)
   const [selectedAlertId, setSelectedAlertId] = useState<string | null>(null)
+  const [preselectEventId, setPreselectEventId] = useState<string | null>(null)
   const [search, setSearch] = useState('')
 
   const { alerts, pending, live: backendLive, aiLive } = useStore()
@@ -75,6 +82,7 @@ function AppShell() {
 
   const screenTitles: Record<Screen, string> = {
     dashboard: 'Dashboard',
+    events: 'Raw Event History',
     alerts: 'Alert Triage Queue',
     approvals: 'Pending Approvals',
     cases: 'Case Management',
@@ -264,6 +272,9 @@ function AppShell() {
           {screen === 'dashboard' && (
             <Dashboard onSelectAlert={setSelectedAlertId} onOpenQueue={() => setScreen('alerts')} onOpenApprovals={() => setScreen('approvals')} />
           )}
+          {screen === 'events' && (
+            <Events preselectId={preselectEventId} onConsumedPreselect={() => setPreselectEventId(null)} />
+          )}
           {screen === 'alerts' && <Alerts onSelectAlert={setSelectedAlertId} />}
           {screen === 'approvals' && <Approvals onSelectAlert={setSelectedAlertId} />}
           {screen === 'cases' && <CaseManagement />}
@@ -278,7 +289,15 @@ function AppShell() {
 
       {/* Alert Detail Panel */}
       {selectedAlertId && (
-        <AlertDetail alertId={selectedAlertId} onClose={() => setSelectedAlertId(null)} />
+        <AlertDetail
+          alertId={selectedAlertId}
+          onClose={() => setSelectedAlertId(null)}
+          onViewEvent={(eventId) => {
+            setSelectedAlertId(null)
+            setPreselectEventId(eventId)
+            setScreen('events')
+          }}
+        />
       )}
     </div>
   )

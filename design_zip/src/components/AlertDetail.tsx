@@ -9,7 +9,15 @@ interface TimelineStep {
   color: string
 }
 
-export default function AlertDetail({ alertId, onClose }: { alertId: string; onClose: () => void }) {
+export default function AlertDetail({
+  alertId,
+  onClose,
+  onViewEvent,
+}: {
+  alertId: string
+  onClose: () => void
+  onViewEvent?: (eventId: string) => void
+}) {
   const { alerts, decide } = useStore()
   const alert = alerts.find(a => a.id === alertId)
   const [note, setNote] = useState('')
@@ -138,6 +146,18 @@ export default function AlertDetail({ alertId, onClose }: { alertId: string; onC
               <div><div className="text-[#6b7280] mb-1 uppercase tracking-widest text-[10px]">Risk score</div><div className="font-mono text-[#e6edf3]">{alert.riskScore} / 100</div></div>
               <div><div className="text-[#6b7280] mb-1 uppercase tracking-widest text-[10px]">Owner</div><div className="font-mono text-[#e6edf3]">{alert.analyst}</div></div>
             </div>
+            {alert.sourceEventId && (
+              <button
+                onClick={() => onViewEvent?.(alert.sourceEventId!)}
+                className="mt-3 text-[11px] font-mono text-[#00d4ff] hover:underline flex items-center gap-1.5"
+              >
+                <svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round">
+                  <path d="M1 6s2-3.5 5-3.5S11 6 11 6s-2 3.5-5 3.5S1 6 1 6Z" />
+                  <circle cx="6" cy="6" r="1.5" />
+                </svg>
+                View raw event ({alert.sourceEventId})
+              </button>
+            )}
           </div>
 
           {/* Threat Intel */}

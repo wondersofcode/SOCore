@@ -9,7 +9,7 @@
  *   VITE_API_URL=http://localhost:8000 npm run dev
  * With no env var it defaults to localhost:8000.
  */
-import type { Alert, Case } from './data'
+import type { Alert, Case, WazuhRawEvent } from './data'
 import { supabase } from './lib/supabase'
 
 const BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:8000'
@@ -49,6 +49,11 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ decision, reason, analyst }),
     }),
+
+  // Raw Wazuh event history — recorded independently of whatever Alert an
+  // event becomes, so an analyst can inspect what actually arrived.
+  events: (limit = 50, offset = 0) => req<WazuhRawEvent[]>(`/api/events?limit=${limit}&offset=${offset}`),
+  event: (id: string) => req<WazuhRawEvent>(`/api/events/${id}`),
 
   // Case management — in-house replacement for TheHive (see backend README).
   cases: () => req<Case[]>('/api/cases'),

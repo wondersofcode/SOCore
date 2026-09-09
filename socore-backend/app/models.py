@@ -70,8 +70,11 @@ class WazuhEvent(BaseModel):
     attack_type: str = Field(default="Unknown")
     mitre_id: str = Field(default="")
     mitre_name: str = Field(default="")
+    rule_id: str = Field(default="")
     rule_level: int = Field(default=5, description="Wazuh rule level 0-15")
     rule_description: str = Field(default="")
+    agent_id: str = Field(default="")
+    agent_name: str = Field(default="")
     country: str = Field(default="")
     asn: str = Field(default="")
     raw: str = Field(default="")
@@ -79,6 +82,20 @@ class WazuhEvent(BaseModel):
     vt_score: Optional[int] = None
     abuse_score: Optional[int] = None
     timestamp: Optional[str] = None
+
+
+# ── The raw event, stored independently of whatever Alert it becomes ───────
+class Event(BaseModel):
+    id: str
+    timestamp: str
+    sourceIP: str
+    ruleId: str = ""
+    ruleLevel: int = 0
+    ruleDescription: str = ""
+    raw: str = ""
+    agentId: str = ""
+    agentName: str = ""
+    alertId: Optional[str] = None
 
 
 # ── The alert object the dashboard consumes ─────────────────────────────────
@@ -106,6 +123,9 @@ class Alert(BaseModel):
     proposedAction: Optional[ProposedAction] = None
     approvalStatus: ApprovalStatus = ApprovalStatus.none
     sources: list[EnrichmentSource] = Field(default_factory=list)
+    # The raw Wazuh event this alert was scored from, if any (seed/mock
+    # alerts have none). Lets the dashboard link back to the untouched event.
+    sourceEventId: Optional[str] = None
 
 
 # ── Case management (replaces TheHive) ──────────────────────────────────────

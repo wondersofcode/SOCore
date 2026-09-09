@@ -23,6 +23,7 @@ from .models import (
     CaseStatus,
     CaseTask,
     DecisionRecord,
+    Event,
     now_hms,
 )
 
@@ -52,6 +53,22 @@ def _row_to_alert(row: dict) -> Alert:
         proposedAction=row["proposed_action"],
         approvalStatus=row["approval_status"],
         sources=row["sources"] or [],
+        sourceEventId=row.get("source_event_id"),
+    )
+
+
+def _row_to_event(row: dict) -> Event:
+    return Event(
+        id=row["id"],
+        timestamp=row["timestamp"],
+        sourceIP=row["source_ip"],
+        ruleId=row["rule_id"] or "",
+        ruleLevel=row["rule_level"],
+        ruleDescription=row["rule_description"] or "",
+        raw=row["raw"] or "",
+        agentId=row["agent_id"] or "",
+        agentName=row["agent_name"] or "",
+        alertId=row["alert_id"],
     )
 
 
@@ -121,6 +138,9 @@ class AlertStore:
     def next_case_id(self) -> str:
         return self._next_seq_id("cases", "CASE")
 
+    def next_event_id(self) -> str:
+        return self._next_seq_id("events", "EVT")
+
     # ── alerts: writes ───────────────────────────────────────────────────
     def add(self, alert: Alert) -> Alert:
         with db.get_cursor(commit=True) as cur:
@@ -130,12 +150,12 @@ class AlertStore:
                     id, timestamp, severity, source_ip, attack_type, mitre_id, mitre_name,
                     status, analyst, raw, vt_score, abuse_score, country, asn,
                     detected_at, enriched_at, responded_at, risk_score, ai_explanation,
-                    ai_confidence, proposed_action, approval_status, sources
+                    ai_confidence, proposed_action, approval_status, sources, source_event_id
                 ) VALUES (
                     %(id)s, %(timestamp)s, %(severity)s, %(sourceIP)s, %(attackType)s, %(mitreId)s, %(mitreName)s,
                     %(status)s, %(analyst)s, %(raw)s, %(vtScore)s, %(abuseScore)s, %(country)s, %(asn)s,
                     %(detectedAt)s, %(enrichedAt)s, %(respondedAt)s, %(riskScore)s, %(aiExplanation)s,
-                    %(aiConfidence)s, %(proposedAction)s, %(approvalStatus)s, %(sources)s
+                    %(aiConfidence)s, %(proposedAction)s, %(approvalStatus)s, %(sources)s, %(sourceEventId)s
                 )
                 ON CONFLICT (id) DO UPDATE SET
                     status = EXCLUDED.status, approval_status = EXCLUDED.approval_status,
@@ -212,6 +232,47 @@ class AlertStore:
                 DecisionRecord(alertId=r["alert_id"], status=r["status"], by=r["by_whom"], at=r["at"], reason=r["reason"] or "")
                 for r in cur.fetchall()
             ]
+
+    # ── events: the raw Wazuh history, independent of any Alert ────────────
+    def add_event(self, event: Event) -> Event:
+        with db.get_cursor(commit=True) as cur:
+            cur.execute(
+                """
+                INSERT INTO events (
+                    id, timestamp, source_ip, rule_id, rule_level, rule_description,
+                    raw, agent_id, agent_name, alert_id
+                ) VALUES (
+                    %(id)s, %(timestamp)s, %(sourceIP)s, %(ruleId)s, %(ruleLevel)s, %(ruleDescription)s,
+                    %(raw)s, %(agentId)s, %(agentName)s, %(alertId)s
+                )
+                ON CONFLICT (id) DO NOTHING
+                """,
+                event.model_dump(),
+            )
+        return event
+
+    def link_event_to_alert(self, event_id: str, alert_id: str) -> None:
+        with db.get_cursor(commit=True) as cur:
+            cur.execute("UPDATE events SET alert_id=%s WHERE id=%s", (alert_id, event_id))
+
+    def all_events(self, limit: int = 50, offset: int = 0) -> list[Event]:
+        with db.get_cursor() as cur:
+            cur.execute(
+                "SELECT * FROM events ORDER BY timestamp DESC, id DESC LIMIT %s OFFSET %s",
+                (limit, offset),
+            )
+            return [_row_to_event(r) for r in cur.fetchall()]
+
+    def count_events(self) -> int:
+        with db.get_cursor() as cur:
+            cur.execute("SELECT count(*) AS n FROM events")
+            return cur.fetchone()["n"]
+
+    def get_event(self, event_id: str) -> Event | None:
+        with db.get_cursor() as cur:
+            cur.execute("SELECT * FROM events WHERE id=%s", (event_id,))
+            row = cur.fetchone()
+            return _row_to_event(row) if row else None
 
     # ── cases ────────────────────────────────────────────────────────────
     def open_case_from_alert(self, alert_id: str, title: str | None, assigned_to: str) -> Case | None:

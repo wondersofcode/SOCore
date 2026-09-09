@@ -81,6 +81,24 @@ CREATE TABLE IF NOT EXISTS alerts (
     created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+-- The raw Wazuh event, kept independent of whatever Alert it may or may not
+-- become. alert_id is nullable: not every event is (yet) turned into an
+-- alert, and this table is the append-only history layer either way.
+CREATE TABLE IF NOT EXISTS events (
+    id                TEXT PRIMARY KEY,
+    timestamp         TEXT NOT NULL,
+    source_ip         TEXT NOT NULL,
+    rule_id           TEXT,
+    rule_level        INTEGER NOT NULL DEFAULT 0,
+    rule_description  TEXT,
+    raw               TEXT,
+    agent_id          TEXT,
+    agent_name        TEXT,
+    alert_id          TEXT,
+    created_at        TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_events_alert_id ON events (alert_id);
+
 CREATE TABLE IF NOT EXISTS cases (
     id           TEXT PRIMARY KEY,
     title        TEXT NOT NULL,
@@ -125,8 +143,18 @@ CREATE TABLE IF NOT EXISTS id_counters (
 );
 """
 
+# Additive migrations against tables that may already exist in production
+# with data — CREATE TABLE IF NOT EXISTS above won't add a column to an
+# existing table, so new alert columns land here instead. Each statement is
+# idempotent and safe to run on every startup.
+MIGRATIONS = """
+ALTER TABLE alerts ADD COLUMN IF NOT EXISTS source_event_id TEXT;
+"""
+
 
 def init_schema() -> None:
-    """Create tables if they don't exist yet. Safe to call on every startup."""
+    """Create tables if they don't exist yet, then apply additive column
+    migrations. Safe to call on every startup."""
     with get_cursor(commit=True) as cur:
         cur.execute(SCHEMA)
+        cur.execute(MIGRATIONS)
