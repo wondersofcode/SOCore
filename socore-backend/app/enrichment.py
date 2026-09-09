@@ -269,7 +269,14 @@ def enrich_ip(ip: str, internal: bool) -> dict:
         if result["misp_hit"]:
             misp_boost = 85
 
-    if is_cortex_configured():
+    # A private/RFC1918 address has no meaningful VirusTotal/AbuseIPDB
+    # reputation, so asking Cortex about one is both pointless and slow —
+    # cortex_analyze_ip() polls each analyzer for up to CORTEX_POLL_TIMEOUT_S,
+    # so this alone can add ~10-16s to every internal-IP alert (the common
+    # case with a single lab agent), which is long enough to defeat a
+    # sub-minute dedup window in the Wazuh integration script that calls
+    # this synchronously.
+    if not internal and is_cortex_configured():
         cortex = cortex_analyze_ip(ip)
         result["cortex_skipped"] = cortex.get("skipped", True)
         result["cortex_ok"] = cortex.get("ok", False)

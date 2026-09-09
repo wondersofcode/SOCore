@@ -81,32 +81,45 @@ class AlertStore:
 
     # ── ids ────────────────────────────────────────────────────────────────
     # Backed by the id_counters table with a single atomic UPSERT, not
-    # derived from MAX(id) in the target table: reading the current max and
-    # inserting the row are two separate statements, so two near-simultaneous
-    # callers (e.g. Wazuh forwarding one alert twice) can both read the same
-    # max and get handed the same "next" id — which then silently clobbers
-    # the first alert's fields via the ON CONFLICT clause in add(). A single
-    # `INSERT ... ON CONFLICT DO UPDATE ... RETURNING` is atomic at the
-    # database level, so this can't race regardless of thread/process count.
-    def _next_seq_id(self, prefix: str) -> str:
+    # derived from MAX(id) in the target table on every call: reading the
+    # current max and inserting the row would be two separate statements, so
+    # two near-simultaneous callers (e.g. Wazuh forwarding one alert twice)
+    # could both read the same max and get handed the same "next" id — which
+    # then silently clobbers the first alert's fields via the ON CONFLICT
+    # clause in add(). A single `INSERT ... ON CONFLICT DO UPDATE ...
+    # RETURNING` is atomic at the database level, so this can't race
+    # regardless of thread/process count.
+    #
+    # The row's *first* value for a given prefix_day is seeded from
+    # MAX(id) already in the target table, not hardcoded to 1 — otherwise a
+    # freshly created id_counters table (as when this table was introduced)
+    # starts back at 001 and collides with rows a still-running old version
+    # of this code already wrote today, silently overwriting their status
+    # fields instead of inserting the new alert (this happened: alerts
+    # 001/002 from an earlier test never actually landed in the table).
+    def _next_seq_id(self, table: str, prefix: str) -> str:
         key = f"{prefix}-{datetime.utcnow():%Y%m%d}"
         with db.get_cursor(commit=True) as cur:
             cur.execute(
-                """
-                INSERT INTO id_counters (prefix_day, seq) VALUES (%s, 1)
+                f"""
+                INSERT INTO id_counters (prefix_day, seq)
+                VALUES (%(key)s, COALESCE(
+                    (SELECT MAX(split_part(id, '-', 3)::int) FROM {table} WHERE id LIKE %(pattern)s),
+                    0
+                ) + 1)
                 ON CONFLICT (prefix_day) DO UPDATE SET seq = id_counters.seq + 1
                 RETURNING seq
                 """,
-                (key,),
+                {"key": key, "pattern": key + "-%"},
             )
             n = cur.fetchone()["seq"]
         return f"{key}-{n:03d}"
 
     def next_id(self) -> str:
-        return self._next_seq_id("ALT")
+        return self._next_seq_id("alerts", "ALT")
 
     def next_case_id(self) -> str:
-        return self._next_seq_id("CASE")
+        return self._next_seq_id("cases", "CASE")
 
     # ── alerts: writes ───────────────────────────────────────────────────
     def add(self, alert: Alert) -> Alert:

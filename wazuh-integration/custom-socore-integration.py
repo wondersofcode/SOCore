@@ -46,14 +46,23 @@ NORMAL_ACTIVITY_EVENT_IDS = {'4624', '4634', '4801', '4802'}
 
 # Some Windows security events legitimately fire more than once for one
 # physical action — e.g. rule 60110 ("User account changed", 4738) fires
-# twice per interactive unlock, once per UAC linked token, ~0.1-0.3s apart,
-# with nothing actually changed either time. Wazuh's own <ignore> rule
-# mechanism doesn't help here (see local_rules.xml for why two attempts at
-# fixing it there didn't work), so it's deduped here instead: any repeat of
-# the same (rule id, agent) within this many seconds is dropped. Deliberately
-# short — long enough to catch a same-action duplicate, short enough that two
-# genuinely separate real detections of the same rule/agent still both alert.
-DEDUP_WINDOW_S = 5
+# twice per interactive unlock, once per UAC linked token, ~0.1-0.3s apart
+# in Wazuh's own alert timestamps, with nothing actually changed either
+# time. Wazuh's own <ignore> rule mechanism doesn't help here (see
+# local_rules.xml for why two attempts at fixing it there didn't work), so
+# it's deduped here instead: any repeat of the same (rule id, agent) within
+# this many seconds is dropped.
+#
+# Not 5s: wazuh-integratord runs queued integration calls one at a time,
+# waiting for each script invocation (this one) to exit before starting the
+# next. send_event()'s POST can itself take up to 25s (its own timeout),
+# most of it /api/ingest's own MISP+Cortex enrichment — so two alerts that
+# were 0.2s apart in Wazuh can end up ~19s apart by the time this script
+# actually runs for the second one (confirmed from actual invocation
+# timestamps, not the alerts' own). 60s covers that with margin; two
+# genuinely separate real detections of the same rule/agent within a
+# minute are rare enough to accept the tradeoff.
+DEDUP_WINDOW_S = 60
 
 # Rule groups that name a platform/subsystem, not an attack — never usable
 # as attack_type even as a last resort (this is how "Windows" was showing up

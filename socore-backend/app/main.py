@@ -118,7 +118,8 @@ def ingest(event: WazuhEvent) -> Alert:
                     src.status, src.detail = "clean", "No matching IOC event"
             if src.name == "Cortex":
                 if enrich_result["cortex_skipped"]:
-                    src.status, src.detail = "skipped", "Cortex not configured"
+                    src.status = "skipped"
+                    src.detail = "Internal address — not submitted" if internal else "Cortex not configured"
                 elif not enrich_result["cortex_ok"]:
                     src.status, src.detail = "skipped", f"Cortex error: {enrich_result['cortex_error']}"
                 else:
