@@ -80,26 +80,33 @@ class AlertStore:
         self._seeded = False
 
     # ── ids ────────────────────────────────────────────────────────────────
-    # Derived from the table itself rather than an in-process counter: a
-    # counter resets to 1 on every restart, which — now that ids persist in
-    # Postgres — collided with ids already used earlier the same day and
-    # silently clobbered them via the ON CONFLICT clause in add().
-    def _next_seq_id(self, table: str, prefix: str) -> str:
-        today = f"{prefix}-{datetime.utcnow():%Y%m%d}-"
-        with self._lock, db.get_cursor() as cur:
+    # Backed by the id_counters table with a single atomic UPSERT, not
+    # derived from MAX(id) in the target table: reading the current max and
+    # inserting the row are two separate statements, so two near-simultaneous
+    # callers (e.g. Wazuh forwarding one alert twice) can both read the same
+    # max and get handed the same "next" id — which then silently clobbers
+    # the first alert's fields via the ON CONFLICT clause in add(). A single
+    # `INSERT ... ON CONFLICT DO UPDATE ... RETURNING` is atomic at the
+    # database level, so this can't race regardless of thread/process count.
+    def _next_seq_id(self, prefix: str) -> str:
+        key = f"{prefix}-{datetime.utcnow():%Y%m%d}"
+        with db.get_cursor(commit=True) as cur:
             cur.execute(
-                f"SELECT id FROM {table} WHERE id LIKE %s ORDER BY id DESC LIMIT 1",
-                (today + "%",),
+                """
+                INSERT INTO id_counters (prefix_day, seq) VALUES (%s, 1)
+                ON CONFLICT (prefix_day) DO UPDATE SET seq = id_counters.seq + 1
+                RETURNING seq
+                """,
+                (key,),
             )
-            row = cur.fetchone()
-        n = int(row["id"].rsplit("-", 1)[-1]) + 1 if row else 1
-        return f"{today}{n:03d}"
+            n = cur.fetchone()["seq"]
+        return f"{key}-{n:03d}"
 
     def next_id(self) -> str:
-        return self._next_seq_id("alerts", "ALT")
+        return self._next_seq_id("ALT")
 
     def next_case_id(self) -> str:
-        return self._next_seq_id("cases", "CASE")
+        return self._next_seq_id("CASE")
 
     # ── alerts: writes ───────────────────────────────────────────────────
     def add(self, alert: Alert) -> Alert:

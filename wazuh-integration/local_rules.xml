@@ -25,6 +25,14 @@
   conditions as the base rule (0580-win-security_rules.xml), plus
   <ignore>5</ignore> so the second copy within 5s is suppressed at the
   source instead of reaching custom-socore-integration.py as a duplicate.
+
+  <ignore> alone keys on same_source_ip by default — these alerts carry
+  no srcip (a local Windows security event, not network-sourced), so a
+  bare <ignore> never found "the same source" and never suppressed
+  anything (confirmed: both linked-token copies still went out, 225ms
+  apart, after the first version of this override). <same_field>
+  agent.id</same_field> makes the correlation key explicit instead of
+  relying on a default that doesn't apply here.
 -->
 <group name="local,">
 
@@ -33,6 +41,7 @@
     <field name="win.system.eventID">^628$|^642$|^685$|^4738$|^4781$</field>
     <description>User account changed</description>
     <options>no_full_log</options>
+    <same_field>agent.id</same_field>
     <ignore>5</ignore>
     <group>account_changed,</group>
     <group>pci_dss_8.1.2,pci_dss_10.2.5,gpg13_7.10,gdpr_IV_35.7.d,gdpr_IV_32.2,hipaa_164.312.a.2.I,hipaa_164.312.a.2.II,hipaa_164.312.b,nist_800_53_AC.2,nist_800_53_IA.4,nist_800_53_AU.14,nist_800_53_AC.7,tsc_CC6.8,tsc_CC7.2,tsc_CC7.3,</group>

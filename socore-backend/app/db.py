@@ -113,6 +113,16 @@ CREATE TABLE IF NOT EXISTS users (
     role          TEXT NOT NULL DEFAULT 'analyst',
     created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+-- Backs AlertStore._next_seq_id: one row per (prefix, day), incremented with
+-- a single atomic UPSERT so two near-simultaneous requests (e.g. Wazuh
+-- forwarding the same event twice) can never be handed the same next id —
+-- unlike deriving it from MAX(id) in the target table, which reads and
+-- writes in separate statements and races.
+CREATE TABLE IF NOT EXISTS id_counters (
+    prefix_day TEXT PRIMARY KEY,
+    seq        INTEGER NOT NULL DEFAULT 0
+);
 """
 
 
