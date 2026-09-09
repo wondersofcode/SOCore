@@ -1,6 +1,7 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
-@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap');
 @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap');
 
 @import 'tailwindcss';
 
@@ -119,6 +120,37 @@ body {
   background-size: 9px 9px;
   -webkit-mask-image: radial-gradient(circle, black 35%, transparent 72%);
   mask-image: radial-gradient(circle, black 35%, transparent 72%);
+}
+
+/* SOCore premium landing/login — hero entrance + live ring */
+@keyframes hero-in {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes ping-ring {
+  0% { opacity: .7; transform: scale(.6); }
+  100% { opacity: 0; transform: scale(1.9); }
+}
+.hero-in {
+  opacity: 0;
+  animation: hero-in .7s cubic-bezier(.16,.8,.24,1) forwards;
+}
+.ping-ring {
+  animation: ping-ring 2s ease-out infinite;
+}
+.reveal-up {
+  opacity: 0;
+  transform: translateY(22px);
+  transition: opacity .7s cubic-bezier(.16,.8,.24,1), transform .7s cubic-bezier(.16,.8,.24,1);
+}
+.reveal-up.in-view {
+  opacity: 1;
+  transform: translateY(0);
+}
+@media (prefers-reduced-motion: reduce) {
+  .hero-in { animation: none !important; opacity: 1 !important; transform: none !important; }
+  .ping-ring { animation: none !important; opacity: .4 !important; }
+  .reveal-up { transition: none !important; opacity: 1 !important; transform: none !important; }
 }
 
 /* Recharts custom */
