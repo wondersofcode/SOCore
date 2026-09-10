@@ -12,6 +12,7 @@ from __future__ import annotations
 import json
 import threading
 from datetime import datetime
+from typing import Callable
 
 from . import db
 from .models import (
@@ -212,9 +213,13 @@ class AlertStore:
             )
         return self.get(alert_id)
 
-    def seed(self, alerts: list[Alert]) -> None:
+    def seed(self, make_alerts: Callable[[], list[Alert]]) -> None:
         """Only seed once — if the table already has rows (a real restart
-        with persisted data), don't overwrite them with fresh sample data."""
+        with persisted data), don't overwrite them with fresh sample data.
+        Takes a zero-arg factory rather than an already-built list so the
+        (expensive — each seed alert gets a real AI explanation call) work
+        of building them only happens when the table is actually empty,
+        instead of on every single startup."""
         with self._lock:
             if self._seeded:
                 return
@@ -222,7 +227,7 @@ class AlertStore:
                 cur.execute("SELECT count(*) AS n FROM alerts")
                 existing = cur.fetchone()["n"]
             if existing == 0:
-                for a in alerts:
+                for a in make_alerts():
                     self.add(a)
             self._seeded = True
 

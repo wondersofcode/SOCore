@@ -62,7 +62,7 @@ def _startup() -> None:
     # Seed a handful of alerts so the dashboard has content before any real
     # Wazuh event arrives. Only runs once — if the table already has rows
     # (a real restart with persisted data), seeding is skipped.
-    store.seed(seed_alerts())
+    store.seed(seed_alerts)
     logger.info("Seeded/verified alerts. AI live: %s", ai_explainer.is_live())
 
 
