@@ -32,11 +32,12 @@ alter table public.profiles add constraint profiles_status_check
 alter table public.profiles add column if not exists slack_notified boolean not null default false;
 
 -- ── Roles (L1 / L2 / admin) ──────────────────────────────────────────────────
--- Existing 'analyst' rows become 'l1_analyst'; the role check widens to the
--- 3-tier model and new signups default to the lowest tier.
+-- Drop the original inline check (only 'analyst'/'admin') *before* renaming
+-- rows to 'l1_analyst' — updating into a value the still-active old
+-- constraint doesn't allow fails with a CheckViolation.
+alter table public.profiles drop constraint if exists profiles_role_check;
 update public.profiles set role = 'l1_analyst' where role = 'analyst';
 alter table public.profiles alter column role set default 'l1_analyst';
-alter table public.profiles drop constraint if exists profiles_role_check;
 alter table public.profiles add constraint profiles_role_check
   check (role in ('l1_analyst', 'l2_analyst', 'admin'));
 
