@@ -2,11 +2,29 @@ import { createContext, useContext, useEffect, useState } from 'react'
 import type { Session, User } from '@supabase/supabase-js'
 import { supabase } from './supabase'
 
+export type Role = 'l1_analyst' | 'l2_analyst' | 'admin'
+
+export interface Profile {
+  role: Role
+  displayName: string
+  firstName: string
+  lastName: string
+  avatarUrl: string
+  themePreference: 'dark' | 'light'
+}
+
 interface AuthState {
   session: Session | null
   user: User | null
-  role: 'analyst' | 'admin' | null
+  role: Role | null
+  profile: Profile | null
+  /** Set once the backend explicitly refuses /api/me with 403 — i.e. the
+   *  account exists but isn't approved yet (or was rejected). Null while
+   *  that's still unknown, or when the backend is simply unreachable (in
+   *  which case the app falls back to the least-privileged view as before). */
+  approvalBlocked: { status: 'pending' | 'rejected'; detail: string } | null
   loading: boolean
+  refreshProfile: () => Promise<void>
   signIn: (email: string, password: string) => Promise<{ error: string | null }>
   signUp: (email: string, password: string) => Promise<{ error: string | null }>
   signOut: () => Promise<void>
@@ -17,20 +35,45 @@ const AuthContext = createContext<AuthState | null>(null)
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null)
-  const [role, setRole] = useState<'analyst' | 'admin' | null>(null)
+  const [role, setRole] = useState<Role | null>(null)
+  const [profile, setProfile] = useState<Profile | null>(null)
+  const [approvalBlocked, setApprovalBlocked] = useState<{ status: 'pending' | 'rejected'; detail: string } | null>(null)
   const [loading, setLoading] = useState(true)
+  const [checkingProfile, setCheckingProfile] = useState(false)
 
   const fetchRole = async (accessToken: string) => {
-    // The backend is the source of truth for role (never trust a claim the
-    // frontend could forge) — it reads `profiles.role`, not the JWT payload.
+    // The backend is the source of truth for role/profile (never trust a
+    // claim the frontend could forge) — it reads the `profiles` row, not the
+    // JWT payload. get_current_user itself returns 403 for a pending/rejected
+    // account, which is how we detect that state here.
+    setCheckingProfile(true)
     try {
       const base = import.meta.env.VITE_API_URL ?? 'http://localhost:8000'
       const res = await fetch(`${base}/api/me`, { headers: { Authorization: `Bearer ${accessToken}` } })
+      if (res.status === 403) {
+        const body = await res.json().catch(() => ({ detail: '' }))
+        const status = String(body.detail || '').includes('rədd') ? 'rejected' : 'pending'
+        setApprovalBlocked({ status, detail: body.detail || 'Hesabınız təsdiq gözləyir' })
+        setRole(null)
+        setProfile(null)
+        return
+      }
       if (!res.ok) return
       const data = await res.json()
+      setApprovalBlocked(null)
       setRole(data.role)
+      setProfile({
+        role: data.role,
+        displayName: data.display_name,
+        firstName: data.firstName ?? '',
+        lastName: data.lastName ?? '',
+        avatarUrl: data.avatarUrl ?? '',
+        themePreference: data.themePreference === 'light' ? 'light' : 'dark',
+      })
     } catch {
-      // Backend unreachable — role stays null, UI falls back to the least-privileged view.
+      // Backend unreachable — role/profile stay null, UI falls back to the least-privileged view.
+    } finally {
+      setCheckingProfile(false)
     }
   }
 
@@ -44,11 +87,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const { data: listener } = supabase.auth.onAuthStateChange((_event, newSession) => {
       setSession(newSession)
       if (newSession) fetchRole(newSession.access_token)
-      else setRole(null)
+      else {
+        setRole(null)
+        setProfile(null)
+        setApprovalBlocked(null)
+      }
     })
 
     return () => listener.subscription.unsubscribe()
   }, [])
+
+  const refreshProfile = async () => {
+    if (session) await fetchRole(session.access_token)
+  }
+
+  // Reflect the account's stored theme preference on <html> as soon as it's
+  // known. Defaults to dark (the app's native look) before a profile has
+  // loaded or for signed-out visitors on the login/landing pages.
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', profile?.themePreference ?? 'dark')
+  }, [profile?.themePreference])
 
   const signIn = async (email: string, password: string) => {
     const { error } = await supabase.auth.signInWithPassword({ email, password })
@@ -71,7 +129,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <AuthContext.Provider
-      value={{ session, user: session?.user ?? null, role, loading, signIn, signUp, signOut, resetPassword }}
+      value={{
+        session,
+        user: session?.user ?? null,
+        role,
+        profile,
+        approvalBlocked,
+        loading: loading || checkingProfile,
+        refreshProfile,
+        signIn,
+        signUp,
+        signOut,
+        resetPassword,
+      }}
     >
       {children}
     </AuthContext.Provider>

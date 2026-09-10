@@ -9,7 +9,7 @@
  *   VITE_API_URL=http://localhost:8000 npm run dev
  * With no env var it defaults to localhost:8000.
  */
-import type { Alert, Case, WazuhRawEvent } from './data'
+import type { AdminUser, Alert, Case, WazuhRawEvent } from './data'
 import { supabase } from './lib/supabase'
 
 const BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:8000'
@@ -54,6 +54,18 @@ export const api = {
   // event becomes, so an analyst can inspect what actually arrived.
   events: (limit = 50, offset = 0) => req<WazuhRawEvent[]>(`/api/events?limit=${limit}&offset=${offset}`),
   event: (id: string) => req<WazuhRawEvent>(`/api/events/${id}`),
+
+  // Admin: registration approval + role management
+  adminPendingCount: () => req<{ count: number }>('/api/admin/pending-count'),
+  adminUsers: () => req<AdminUser[]>('/api/admin/users'),
+  adminApprove: (id: string) => req<AdminUser>(`/api/admin/users/${id}/approve`, { method: 'POST' }),
+  adminReject: (id: string) => req<AdminUser>(`/api/admin/users/${id}/reject`, { method: 'POST' }),
+  adminSetRole: (id: string, role: string) =>
+    req<AdminUser>(`/api/admin/users/${id}/role`, { method: 'PATCH', body: JSON.stringify({ role }) }),
+
+  // Self-service profile edit (Settings page)
+  updateProfile: (patch: { firstName?: string; lastName?: string; avatarUrl?: string; themePreference?: string }) =>
+    req<AdminUser>('/api/profile', { method: 'PATCH', body: JSON.stringify(patch) }),
 
   // Case management — in-house replacement for TheHive (see backend README).
   cases: () => req<Case[]>('/api/cases'),

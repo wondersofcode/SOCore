@@ -25,7 +25,7 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jwt import PyJWKClient
 
-from . import db
+from . import actions, db
 
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "").strip().rstrip("/")
 _JWKS_URL = f"{SUPABASE_URL}/auth/v1/.well-known/jwks.json" if SUPABASE_URL else ""
@@ -38,7 +38,7 @@ class CurrentUser:
     def __init__(self, user_id: str, email: str, role: str, display_name: str):
         self.user_id = user_id
         self.email = email
-        self.role = role  # 'analyst' or 'admin'
+        self.role = role  # 'l1_analyst', 'l2_analyst' or 'admin'
         self.display_name = display_name
 
 
@@ -54,23 +54,36 @@ def _decode_token(token: str) -> dict:
         raise HTTPException(status_code=401, detail="Invalid session token")
 
 
-def _load_profile(user_id: str, email: str) -> tuple[str, str]:
-    """Returns (role, display_name). Creates a default profile if one is
-    missing (e.g. the DB trigger didn't fire for some reason)."""
+def _load_profile(user_id: str, email: str) -> dict:
+    """Returns the profile row. Creates a default one (status 'pending',
+    role 'l1_analyst' — both column defaults) if it's missing, e.g. the DB
+    trigger didn't fire for some reason."""
     with db.get_cursor() as cur:
-        cur.execute("SELECT role, display_name FROM profiles WHERE id=%s", (user_id,))
+        cur.execute("SELECT role, display_name, status, slack_notified FROM profiles WHERE id=%s", (user_id,))
         row = cur.fetchone()
     if row:
-        return row["role"], row["display_name"] or email.split("@")[0]
+        return row
 
     default_name = email.split("@")[0]
     with db.get_cursor(commit=True) as cur:
         cur.execute(
-            "INSERT INTO profiles (id, email, display_name, role) VALUES (%s,%s,%s,'analyst') "
+            "INSERT INTO profiles (id, email, display_name) VALUES (%s,%s,%s) "
             "ON CONFLICT (id) DO NOTHING",
             (user_id, email, default_name),
         )
-    return "analyst", default_name
+        cur.execute("SELECT role, display_name, status, slack_notified FROM profiles WHERE id=%s", (user_id,))
+        row = cur.fetchone()
+    return row
+
+
+def _notify_pending_once(user_id: str, email: str) -> None:
+    """Slack-pings once per account the first time a pending user's own JWT
+    reaches the backend — a real, confirmed signup (not a spoofable public
+    endpoint), and 'once' via the slack_notified flag so a pending user
+    retrying login doesn't spam the channel."""
+    actions.send_slack_alert(f"Yeni istifadəçi qeydiyyatdan keçdi, təsdiq gözləyir: {email}")
+    with db.get_cursor(commit=True) as cur:
+        cur.execute("UPDATE profiles SET slack_notified=true WHERE id=%s", (user_id,))
 
 
 def get_current_user(creds: HTTPAuthorizationCredentials | None = Depends(_bearer)) -> CurrentUser:
@@ -81,8 +94,17 @@ def get_current_user(creds: HTTPAuthorizationCredentials | None = Depends(_beare
     email = payload.get("email", "")
     if not user_id:
         raise HTTPException(status_code=401, detail="Token missing subject")
-    role, display_name = _load_profile(user_id, email)
-    return CurrentUser(user_id=user_id, email=email, role=role, display_name=display_name)
+
+    profile = _load_profile(user_id, email)
+    if profile["status"] == "pending":
+        if not profile["slack_notified"]:
+            _notify_pending_once(user_id, email)
+        raise HTTPException(status_code=403, detail="Hesabınız təsdiq gözləyir")
+    if profile["status"] == "rejected":
+        raise HTTPException(status_code=403, detail="Hesabınıza giriş rədd edilib")
+
+    display_name = profile["display_name"] or email.split("@")[0]
+    return CurrentUser(user_id=user_id, email=email, role=profile["role"], display_name=display_name)
 
 
 def require_admin(user: CurrentUser = Depends(get_current_user)) -> CurrentUser:

@@ -4,6 +4,22 @@ export type CaseStatus = 'Open' | 'Investigating' | 'Contained' | 'Closed'
 export type SimStatus = 'Planned' | 'Scripted' | 'Tested' | 'Detected'
 export type ApprovalStatus = 'None' | 'Pending' | 'Approved' | 'Rejected'
 export type SourceStatus = 'hit' | 'clean' | 'pending' | 'skipped'
+export type UserRole = 'l1_analyst' | 'l2_analyst' | 'admin'
+export type UserStatus = 'pending' | 'approved' | 'rejected'
+
+/** A `profiles` row, as the admin panel and Settings page see it. */
+export interface AdminUser {
+  id: string
+  email: string
+  displayName: string
+  firstName: string
+  lastName: string
+  avatarUrl: string
+  role: UserRole
+  status: UserStatus
+  themePreference: 'dark' | 'light'
+  createdAt: string
+}
 
 /** Where a piece of enrichment came from — mirrors the real SOCore pipeline. */
 export interface EnrichmentSource {

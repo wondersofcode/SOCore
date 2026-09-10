@@ -24,12 +24,12 @@ function formatShiftWindow(alerts: Alert[]): string {
   return `${dateLabel} · ${fmtTime(earliest)}–${fmtTime(latest)} UTC`
 }
 
-function Metric({ label, value, note, color = '#e6edf3' }: { label: string; value: string; note: string; color?: string }) {
+function Metric({ label, value, note, color = 'var(--color-text-primary)' }: { label: string; value: string; note: string; color?: string }) {
   return (
-    <div className="bg-[#161b22] border border-[#21262d] rounded-lg px-4 py-3.5">
-      <div className="text-[11px] text-[#6b7280]">{label}</div>
+    <div className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg px-4 py-3.5">
+      <div className="text-[11px] text-[var(--color-info)]">{label}</div>
       <div className="text-2xl font-mono font-bold leading-tight mt-0.5" style={{ color }}>{value}</div>
-      <div className="text-[11px] text-[#484f58] mt-0.5">{note}</div>
+      <div className="text-[11px] text-[var(--color-text-muted)] mt-0.5">{note}</div>
     </div>
   )
 }
@@ -61,18 +61,18 @@ export default function Reports() {
   return (
     <div className="space-y-4 max-w-5xl">
       {/* Shift summary in plain language */}
-      <div className="bg-[#161b22] border border-[#21262d] rounded-lg px-5 py-4">
+      <div className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg px-5 py-4">
         <div className="flex items-baseline justify-between mb-2">
-          <span className="text-sm text-[#e6edf3]">Shift summary</span>
-          <span className="text-[10px] font-mono text-[#484f58]">{formatShiftWindow(alerts)}</span>
+          <span className="text-sm text-[var(--color-text-primary)]">Shift summary</span>
+          <span className="text-[10px] font-mono text-[var(--color-text-muted)]">{formatShiftWindow(alerts)}</span>
         </div>
-        <p className="text-xs text-[#8b949e] leading-relaxed max-w-3xl">
+        <p className="text-xs text-[var(--color-text-secondary)] leading-relaxed max-w-3xl">
           {total} alerts were raised this shift, {external} of them from outside the network.
           {' '}{critical} reached critical severity, and the average risk score across all alerts was {avgRisk}.
           {' '}{autoHandled} were handled without human involvement; {humanReviewed} crossed the approval
           threshold and needed an analyst decision. {resolved} alerts are now closed.
         </p>
-        <button className="mt-3 text-[11px] px-3 py-1.5 rounded-lg border border-[#21262d] text-[#8b949e] hover:text-[#00d4ff] hover:border-[#00d4ff40] transition-colors">
+        <button className="mt-3 text-[11px] px-3 py-1.5 rounded-lg border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:text-[#00d4ff] hover:border-[#00d4ff40] transition-colors">
           Export as PDF
         </button>
       </div>
@@ -86,20 +86,20 @@ export default function Reports() {
 
       <div className="grid grid-cols-2 gap-3">
         {/* Risk contribution by attack type */}
-        <div className="bg-[#161b22] border border-[#21262d] rounded-lg overflow-hidden">
-          <div className="px-5 py-3 border-b border-[#21262d] text-xs font-semibold text-[#e6edf3]">
+        <div className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg overflow-hidden">
+          <div className="px-5 py-3 border-b border-[var(--color-border)] text-xs font-semibold text-[var(--color-text-primary)]">
             Attack types by peak risk
           </div>
           <div className="px-5 py-4 space-y-3">
             {byType.map(t => (
               <div key={t.type}>
                 <div className="flex items-baseline justify-between text-xs mb-1">
-                  <span className="text-[#e6edf3]">{t.type}</span>
-                  <span className="font-mono text-[#6b7280]">
+                  <span className="text-[var(--color-text-primary)]">{t.type}</span>
+                  <span className="font-mono text-[var(--color-info)]">
                     {t.count} alert{t.count > 1 ? 's' : ''} · peak {t.risk}
                   </span>
                 </div>
-                <div className="h-1.5 rounded-full bg-[#21262d] overflow-hidden">
+                <div className="h-1.5 rounded-full bg-[var(--color-border)] overflow-hidden">
                   <div className="h-full rounded-full" style={{ width: `${t.risk}%`, background: riskColor(t.risk) }} />
                 </div>
               </div>
@@ -108,21 +108,21 @@ export default function Reports() {
         </div>
 
         {/* Highest risk alerts */}
-        <div className="bg-[#161b22] border border-[#21262d] rounded-lg overflow-hidden">
-          <div className="px-5 py-3 border-b border-[#21262d] text-xs font-semibold text-[#e6edf3]">
+        <div className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg overflow-hidden">
+          <div className="px-5 py-3 border-b border-[var(--color-border)] text-xs font-semibold text-[var(--color-text-primary)]">
             Highest risk this shift
           </div>
-          <div className="divide-y divide-[#21262d]">
+          <div className="divide-y divide-[var(--color-border)]">
             {topRisk.map(a => (
               <div key={a.id} className="flex items-center gap-3 px-5 py-2.5">
                 <span className="font-mono font-bold text-sm w-8 shrink-0" style={{ color: riskColor(a.riskScore) }}>
                   {a.riskScore}
                 </span>
                 <div className="flex-1 min-w-0">
-                  <div className="text-xs text-[#e6edf3] truncate">{a.attackType}</div>
-                  <div className="text-[10px] font-mono text-[#484f58] truncate">{a.sourceIP} · {a.mitreId}</div>
+                  <div className="text-xs text-[var(--color-text-primary)] truncate">{a.attackType}</div>
+                  <div className="text-[10px] font-mono text-[var(--color-text-muted)] truncate">{a.sourceIP} · {a.mitreId}</div>
                 </div>
-                <span className="text-[10px] font-mono text-[#484f58] shrink-0">{a.timestamp.slice(11, 16)}</span>
+                <span className="text-[10px] font-mono text-[var(--color-text-muted)] shrink-0">{a.timestamp.slice(11, 16)}</span>
               </div>
             ))}
           </div>

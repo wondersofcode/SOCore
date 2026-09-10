@@ -92,7 +92,7 @@ export default function Login() {
   const heading = mode === 'signin' ? 'Welcome back' : mode === 'signup' ? 'Create your workspace' : 'Reset your password'
   const subheading =
     mode === 'signin' ? 'Sign in to your SOCore workspace.' :
-    mode === 'signup' ? 'New analyst accounts default to read/triage access.' :
+    mode === 'signup' ? 'New accounts require admin approval before you can sign in.' :
     "We'll email you a link to reset your password."
 
   return (

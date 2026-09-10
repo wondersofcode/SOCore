@@ -31,7 +31,7 @@ export default function SimulationTracker() {
   return (
     <div className="space-y-4">
       {/* Header banner */}
-      <div className="relative bg-[#161b22] border border-[#a855f740] rounded-lg p-4 overflow-hidden">
+      <div className="relative bg-[var(--color-surface)] border border-[#a855f740] rounded-lg p-4 overflow-hidden">
         <div className="absolute inset-0 opacity-5" style={{ background: 'linear-gradient(135deg, #a855f7 0%, #ec4899 100%)' }} />
         <div className="absolute inset-x-0 top-0 h-px" style={{ background: 'linear-gradient(90deg, transparent, #a855f780, transparent)' }} />
         <div className="relative flex items-center justify-between">
@@ -43,15 +43,15 @@ export default function SimulationTracker() {
               </svg>
             </div>
             <div>
-              <div className="text-sm font-semibold text-[#e6edf3]">Simulation Tracker</div>
+              <div className="text-sm font-semibold text-[var(--color-text-primary)]">Simulation Tracker</div>
               <div className="text-[10px] text-[#a855f7] font-mono mt-0.5">PURPLE TEAM · CONTROLLED ENVIRONMENT</div>
             </div>
           </div>
           <div className="flex items-center gap-4 text-xs font-mono">
-            <div className="text-center"><div className="text-[#22c55e] font-bold text-lg">{counts.Detected || 0}</div><div className="text-[#6b7280] text-[9px] uppercase tracking-widest">Detected</div></div>
-            <div className="text-center"><div className="text-[#eab308] font-bold text-lg">{counts.Tested || 0}</div><div className="text-[#6b7280] text-[9px] uppercase tracking-widest">Tested</div></div>
-            <div className="text-center"><div className="text-[#3b82f6] font-bold text-lg">{counts.Scripted || 0}</div><div className="text-[#6b7280] text-[9px] uppercase tracking-widest">Scripted</div></div>
-            <div className="text-center"><div className="text-[#6b7280] font-bold text-lg">{counts.Planned || 0}</div><div className="text-[#6b7280] text-[9px] uppercase tracking-widest">Planned</div></div>
+            <div className="text-center"><div className="text-[#22c55e] font-bold text-lg">{counts.Detected || 0}</div><div className="text-[var(--color-info)] text-[9px] uppercase tracking-widest">Detected</div></div>
+            <div className="text-center"><div className="text-[#eab308] font-bold text-lg">{counts.Tested || 0}</div><div className="text-[var(--color-info)] text-[9px] uppercase tracking-widest">Tested</div></div>
+            <div className="text-center"><div className="text-[#3b82f6] font-bold text-lg">{counts.Scripted || 0}</div><div className="text-[var(--color-info)] text-[9px] uppercase tracking-widest">Scripted</div></div>
+            <div className="text-center"><div className="text-[var(--color-info)] font-bold text-lg">{counts.Planned || 0}</div><div className="text-[var(--color-info)] text-[9px] uppercase tracking-widest">Planned</div></div>
           </div>
         </div>
       </div>
@@ -65,7 +65,7 @@ export default function SimulationTracker() {
             className={`px-3 py-1.5 rounded text-[10px] font-semibold uppercase tracking-widest transition-colors ${
               filter === s
                 ? 'bg-[#a855f720] border border-[#a855f740] text-[#a855f7]'
-                : 'text-[#6b7280] hover:text-[#8b949e] border border-transparent'
+                : 'text-[var(--color-info)] hover:text-[var(--color-text-secondary)] border border-transparent'
             }`}
           >
             {s}
@@ -74,12 +74,12 @@ export default function SimulationTracker() {
       </div>
 
       {/* Table */}
-      <div className="bg-[#161b22] border border-[#21262d] rounded-lg overflow-hidden">
+      <div className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg overflow-hidden">
         <table className="w-full text-xs">
           <thead>
-            <tr className="border-b border-[#21262d]">
+            <tr className="border-b border-[var(--color-border)]">
               {['ID', 'Simulation Name', 'ATT&CK ID', 'Kill Chain Phase', 'Status', 'Last Run', 'Time-to-Detect', ''].map(h => (
-                <th key={h} className="px-4 py-3 text-left text-[10px] uppercase tracking-widest text-[#6b7280] font-semibold whitespace-nowrap">{h}</th>
+                <th key={h} className="px-4 py-3 text-left text-[10px] uppercase tracking-widest text-[var(--color-info)] font-semibold whitespace-nowrap">{h}</th>
               ))}
             </tr>
           </thead>
@@ -87,25 +87,25 @@ export default function SimulationTracker() {
             {filtered.map(sim => {
               const isRunning = runningId === sim.id
               return (
-                <tr key={sim.id} className="border-b border-[#21262d] last:border-b-0 hover:bg-[#1c2128] transition-colors group">
-                  <td className="px-4 py-3 font-mono text-[#484f58]">{sim.id}</td>
-                  <td className="px-4 py-3 text-[#e6edf3] font-medium group-hover:text-[#a855f7] transition-colors">{sim.name}</td>
+                <tr key={sim.id} className="border-b border-[var(--color-border)] last:border-b-0 hover:bg-[var(--color-surface-2)] transition-colors group">
+                  <td className="px-4 py-3 font-mono text-[var(--color-text-muted)]">{sim.id}</td>
+                  <td className="px-4 py-3 text-[var(--color-text-primary)] font-medium group-hover:text-[#a855f7] transition-colors">{sim.name}</td>
                   <td className="px-4 py-3 font-mono text-[#a855f7]">{sim.mitreId}</td>
                   <td className="px-4 py-3">
                     <span
                       className="inline-block px-2 py-0.5 rounded text-[10px] font-mono font-semibold"
                       style={{
-                        color: killChainColors[sim.killChain] || '#6b7280',
-                        background: `${killChainColors[sim.killChain] || '#6b7280'}15`,
+                        color: killChainColors[sim.killChain] || 'var(--color-info)',
+                        background: `${killChainColors[sim.killChain] || 'var(--color-info)'}15`,
                       }}
                     >
                       {sim.killChain}
                     </span>
                   </td>
                   <td className="px-4 py-3"><SimStatusPill status={sim.status} /></td>
-                  <td className="px-4 py-3 font-mono text-[#6b7280] whitespace-nowrap">{sim.lastRun}</td>
+                  <td className="px-4 py-3 font-mono text-[var(--color-info)] whitespace-nowrap">{sim.lastRun}</td>
                   <td className="px-4 py-3 font-mono">
-                    <span className={sim.ttd === '—' ? 'text-[#484f58]' : 'text-[#00d4ff]'}>{sim.ttd}</span>
+                    <span className={sim.ttd === '—' ? 'text-[var(--color-text-muted)]' : 'text-[#00d4ff]'}>{sim.ttd}</span>
                   </td>
                   <td className="px-4 py-3">
                     <button
@@ -115,7 +115,7 @@ export default function SimulationTracker() {
                       style={{
                         borderColor: isRunning ? '#a855f780' : '#a855f740',
                         background: isRunning ? '#a855f720' : '#a855f710',
-                        color: isRunning ? '#a855f7' : '#8b949e',
+                        color: isRunning ? '#a855f7' : 'var(--color-text-secondary)',
                       }}
                     >
                       {isRunning ? (

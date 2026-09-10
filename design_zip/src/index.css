@@ -34,6 +34,25 @@
   --font-mono: 'JetBrains Mono', monospace;
 }
 
+/* Light theme — applied via [data-theme="light"] on <html>, set from
+   profiles.theme_preference (see AuthContext.tsx) rather than the OS
+   preference, so it stays a deliberate per-account choice. Overrides the
+   same custom properties the @theme block above defines, so every
+   `bg-[var(--color-x)]` / `var(--color-x)` usage repaints automatically —
+   no separate light-mode class needed at the call site. */
+:root[data-theme='light'] {
+  --color-background: #f6f8fa;
+  --color-surface: #ffffff;
+  --color-surface-2: #eef1f4;
+  --color-border: #d8dee4;
+  --color-border-bright: #c3cbd3;
+  --color-text-primary: #1b1f24;
+  --color-text-secondary: #57606a;
+  --color-text-muted: #6e7681;
+  --color-info: #6e7681;
+  --color-info-dim: #6e768120;
+}
+
 * {
   box-sizing: border-box;
 }
@@ -45,12 +64,13 @@ html, body, #root {
 }
 
 body {
-  background-color: #0d1117;
-  color: #e6edf3;
+  background-color: var(--color-background);
+  color: var(--color-text-primary);
   font-family: 'Inter', system-ui, sans-serif;
   font-size: 14px;
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
+  transition: background-color 0.15s ease, color 0.15s ease;
 }
 
 ::-webkit-scrollbar {
@@ -61,11 +81,11 @@ body {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: #30363d;
+  background: var(--color-border-bright);
   border-radius: 3px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #484f58;
+  background: var(--color-text-muted);
 }
 
 .font-mono {

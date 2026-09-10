@@ -11,32 +11,32 @@ function ApprovalCard({ alert, onSelectAlert }: { alert: Alert; onSelectAlert: (
   const action = alert.proposedAction!
 
   return (
-    <div className="bg-[#161b22] border border-[#f9731630] rounded-lg overflow-hidden">
+    <div className="bg-[var(--color-surface)] border border-[#f9731630] rounded-lg overflow-hidden">
       {/* What the automation wants to do */}
       <div className="flex items-start gap-4 px-5 py-4">
         <RiskScore score={alert.riskScore} size="lg" />
 
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-[#e6edf3] font-semibold">{action.action}</span>
+            <span className="text-[var(--color-text-primary)] font-semibold">{action.action}</span>
             {action.dryRun && (
-              <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-[#21262d] text-[#8b949e]">
+              <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-[var(--color-border)] text-[var(--color-text-secondary)]">
                 simulated
               </span>
             )}
           </div>
-          <div className="mt-1 flex items-center gap-2 text-xs text-[#8b949e] flex-wrap">
-            <span className="font-mono text-[#e6edf3]">{action.target}</span>
-            <span className="text-[#30363d]">·</span>
+          <div className="mt-1 flex items-center gap-2 text-xs text-[var(--color-text-secondary)] flex-wrap">
+            <span className="font-mono text-[var(--color-text-primary)]">{action.target}</span>
+            <span className="text-[var(--color-border-bright)]">·</span>
             <span>{alert.attackType}</span>
-            <span className="text-[#30363d]">·</span>
+            <span className="text-[var(--color-border-bright)]">·</span>
             <span className="font-mono text-[#a855f7]">{alert.mitreId}</span>
-            <span className="text-[#30363d]">·</span>
+            <span className="text-[var(--color-border-bright)]">·</span>
             <button onClick={() => onSelectAlert(alert.id)} className="font-mono text-[#00d4ff] hover:underline">
               {alert.id}
             </button>
           </div>
-          <div className="mt-1.5 text-[11px] font-mono text-[#484f58]">
+          <div className="mt-1.5 text-[11px] font-mono text-[var(--color-text-muted)]">
             Raised by {action.playbook} · waiting on {currentUser}
           </div>
         </div>
@@ -53,16 +53,16 @@ function ApprovalCard({ alert, onSelectAlert }: { alert: Alert; onSelectAlert: (
       </div>
 
       {/* The human decision */}
-      <div className="border-t border-[#21262d] bg-[#0d1117] px-5 py-3 flex items-center gap-3">
+      <div className="border-t border-[var(--color-border)] bg-[var(--color-background)] px-5 py-3 flex items-center gap-3">
         <input
           value={reason}
           onChange={e => setReason(e.target.value)}
           placeholder="Reason for the decision (recorded in the audit trail)"
-          className="flex-1 bg-[#161b22] border border-[#21262d] rounded-lg px-3 py-1.5 text-xs text-[#e6edf3] placeholder-[#484f58] focus:outline-none focus:border-[#00d4ff40] transition-colors"
+          className="flex-1 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg px-3 py-1.5 text-xs text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] focus:outline-none focus:border-[#00d4ff40] transition-colors"
         />
         <button
           onClick={() => decide(alert.id, 'Rejected', reason || 'No reason given')}
-          className="px-3 py-1.5 rounded-lg border border-[#30363d] text-xs text-[#8b949e] hover:text-[#e6edf3] hover:border-[#484f58] transition-colors whitespace-nowrap"
+          className="px-3 py-1.5 rounded-lg border border-[var(--color-border-bright)] text-xs text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:border-[var(--color-text-muted)] transition-colors whitespace-nowrap"
         >
           Reject
         </button>
@@ -85,9 +85,9 @@ export default function Approvals({ onSelectAlert }: { onSelectAlert: (id: strin
   return (
     <div className="space-y-4 max-w-5xl">
       {/* How the split between automatic and human work is drawn */}
-      <div className="bg-[#161b22] border border-[#21262d] rounded-lg px-5 py-4">
-        <div className="text-sm text-[#e6edf3] mb-1">Nothing here runs without you</div>
-        <p className="text-xs text-[#8b949e] leading-relaxed max-w-2xl">
+      <div className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg px-5 py-4">
+        <div className="text-sm text-[var(--color-text-primary)] mb-1">Nothing here runs without you</div>
+        <p className="text-xs text-[var(--color-text-secondary)] leading-relaxed max-w-2xl">
           Low-risk work — notifying the channel, enriching indicators, opening a case — happens on its own.
           Anything that changes the network waits here for a decision, and every decision is written to the
           audit trail with the reason you give.
@@ -95,7 +95,7 @@ export default function Approvals({ onSelectAlert }: { onSelectAlert: (id: strin
         <div className="mt-3 flex items-center gap-5 text-[11px] font-mono">
           <span className="text-[#f97316]">{pending.length} waiting on a human</span>
           <span className="text-[#22c55e]">{autoHandled} handled automatically</span>
-          <span className="text-[#8b949e]">{decisions.length} decided this session</span>
+          <span className="text-[var(--color-text-secondary)]">{decisions.length} decided this session</span>
         </div>
       </div>
 
@@ -107,14 +107,14 @@ export default function Approvals({ onSelectAlert }: { onSelectAlert: (id: strin
           ))}
         </div>
       ) : (
-        <div className="bg-[#161b22] border border-[#21262d] rounded-lg flex flex-col items-center justify-center py-14 gap-2">
+        <div className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg flex flex-col items-center justify-center py-14 gap-2">
           <div className="w-10 h-10 rounded-full bg-[#22c55e15] border border-[#22c55e30] flex items-center justify-center">
             <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
               <path d="M4 9.5l3.5 3.5L14 6" stroke="#22c55e" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
           </div>
-          <div className="text-sm text-[#e6edf3]">No actions are waiting</div>
-          <div className="text-xs text-[#6b7280]">
+          <div className="text-sm text-[var(--color-text-primary)]">No actions are waiting</div>
+          <div className="text-xs text-[var(--color-info)]">
             New requests appear here as soon as a playbook proposes a change to the network.
           </div>
         </div>
@@ -122,11 +122,11 @@ export default function Approvals({ onSelectAlert }: { onSelectAlert: (id: strin
 
       {/* Audit trail */}
       {decisions.length > 0 && (
-        <div className="bg-[#161b22] border border-[#21262d] rounded-lg overflow-hidden">
-          <div className="px-5 py-3 border-b border-[#21262d] text-xs font-semibold text-[#e6edf3]">
+        <div className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg overflow-hidden">
+          <div className="px-5 py-3 border-b border-[var(--color-border)] text-xs font-semibold text-[var(--color-text-primary)]">
             Audit trail
           </div>
-          <div className="divide-y divide-[#21262d]">
+          <div className="divide-y divide-[var(--color-border)]">
             {decisions.map((d, i) => {
               const a = alerts.find(x => x.id === d.alertId)
               const approved = d.status === 'Approved'
@@ -134,20 +134,20 @@ export default function Approvals({ onSelectAlert }: { onSelectAlert: (id: strin
                 <div key={i} className="flex items-start gap-3 px-5 py-3">
                   <span
                     className="mt-0.5 w-1.5 h-1.5 rounded-full shrink-0"
-                    style={{ background: approved ? '#22c55e' : '#6b7280' }}
+                    style={{ background: approved ? '#22c55e' : 'var(--color-info)' }}
                   />
                   <div className="flex-1 min-w-0 text-xs">
-                    <div className="text-[#e6edf3]">
-                      <span style={{ color: approved ? '#22c55e' : '#8b949e' }}>
+                    <div className="text-[var(--color-text-primary)]">
+                      <span style={{ color: approved ? '#22c55e' : 'var(--color-text-secondary)' }}>
                         {approved ? 'Approved' : 'Rejected'}
                       </span>
                       {' — '}
                       {a?.proposedAction?.action ?? 'action'} on{' '}
                       <span className="font-mono">{a?.sourceIP}</span>
                     </div>
-                    <div className="text-[#6b7280] mt-0.5">{d.reason}</div>
+                    <div className="text-[var(--color-info)] mt-0.5">{d.reason}</div>
                   </div>
-                  <div className="text-[10px] font-mono text-[#484f58] whitespace-nowrap">
+                  <div className="text-[10px] font-mono text-[var(--color-text-muted)] whitespace-nowrap">
                     {d.by} · {d.at}
                   </div>
                 </div>

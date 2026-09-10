@@ -17,7 +17,7 @@ function PipelineNode({ label, count, color, delay = 0 }: { label: string; count
         <div className="absolute inset-0 rounded-full opacity-10" style={{ background: color }} />
         <span className="text-2xl font-bold font-mono" style={{ color }}>{count}</span>
       </div>
-      <span className="text-[10px] uppercase tracking-widest text-[#8b949e] font-semibold">{label}</span>
+      <span className="text-[10px] uppercase tracking-widest text-[var(--color-text-secondary)] font-semibold">{label}</span>
     </div>
   )
 }
@@ -48,13 +48,13 @@ function RiskGauge({ score }: { score: number }) {
   const angle = -135 + (score / 100) * 270
   const color = score >= 75 ? '#ef4444' : score >= 50 ? '#f97316' : score >= 25 ? '#eab308' : '#22c55e'
   return (
-    <div className="relative bg-[#161b22] border border-[#21262d] rounded-lg p-4 overflow-hidden hover:border-[#30363d] transition-colors">
+    <div className="relative bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg p-4 overflow-hidden hover:border-[var(--color-border-bright)] transition-colors">
       <div className="absolute inset-x-0 top-0 h-px" style={{ background: `linear-gradient(90deg, transparent, ${color}60, transparent)` }} />
-      <div className="text-[#8b949e] text-xs uppercase tracking-widest font-semibold mb-3">System Risk Score</div>
+      <div className="text-[var(--color-text-secondary)] text-xs uppercase tracking-widest font-semibold mb-3">System Risk Score</div>
       <div className="flex flex-col items-center gap-1">
         <svg width="100" height="60" viewBox="0 0 100 60">
           {/* Track */}
-          <path d="M 10 55 A 40 40 0 0 1 90 55" fill="none" stroke="#21262d" strokeWidth="6" strokeLinecap="round" />
+          <path d="M 10 55 A 40 40 0 0 1 90 55" fill="none" stroke="var(--color-border)" strokeWidth="6" strokeLinecap="round" />
           {/* Fill */}
           <path d="M 10 55 A 40 40 0 0 1 90 55" fill="none" stroke={color} strokeWidth="6" strokeLinecap="round"
             strokeDasharray={`${(score / 100) * 125.6} 125.6`} opacity={0.8} />
@@ -64,8 +64,8 @@ function RiskGauge({ score }: { score: number }) {
             <circle cx="0" cy="0" r="3" fill={color} />
           </g>
           {/* Labels */}
-          <text x="8" y="58" fill="#484f58" fontSize="8" fontFamily="JetBrains Mono">0</text>
-          <text x="86" y="58" fill="#484f58" fontSize="8" fontFamily="JetBrains Mono">100</text>
+          <text x="8" y="58" fill="var(--color-text-muted)" fontSize="8" fontFamily="JetBrains Mono">0</text>
+          <text x="86" y="58" fill="var(--color-text-muted)" fontSize="8" fontFamily="JetBrains Mono">100</text>
         </svg>
         <div className="text-3xl font-bold font-mono" style={{ color }}>{score}</div>
         <div className="text-[10px] uppercase tracking-widest" style={{ color }}>
@@ -83,22 +83,22 @@ function RiskGauge({ score }: { score: number }) {
 function ChartTooltip({ active, payload, label }: any) {
   if (!active || !payload?.length) return null
   return (
-    <div className="bg-[#1c2128] border border-[#30363d] rounded px-3 py-2 text-xs font-mono shadow-xl">
-      <div className="text-[#8b949e] mb-1">{label}</div>
-      <div className="text-[#e6edf3] font-semibold">{payload[0].value}</div>
+    <div className="bg-[var(--color-surface-2)] border border-[var(--color-border-bright)] rounded px-3 py-2 text-xs font-mono shadow-xl">
+      <div className="text-[var(--color-text-secondary)] mb-1">{label}</div>
+      <div className="text-[var(--color-text-primary)] font-semibold">{payload[0].value}</div>
     </div>
   )
 }
 
 // ── Mini Kanban ──────────────────────────────────────────────────────────────
 function KanbanCard({ id, title, severity }: { id: string; title: string; severity: string }) {
-  const colors: Record<string, string> = { Critical: '#ef4444', High: '#f97316', Medium: '#eab308', Low: '#3b82f6', Informational: '#6b7280' }
-  const color = colors[severity] || '#6b7280'
+  const colors: Record<string, string> = { Critical: '#ef4444', High: '#f97316', Medium: '#eab308', Low: '#3b82f6', Informational: 'var(--color-info)' }
+  const color = colors[severity] || 'var(--color-info)'
   return (
-    <div className="bg-[#1c2128] border border-[#21262d] rounded p-2.5 hover:border-[#30363d] transition-colors cursor-pointer group">
+    <div className="bg-[var(--color-surface-2)] border border-[var(--color-border)] rounded p-2.5 hover:border-[var(--color-border-bright)] transition-colors cursor-pointer group">
       <div className="h-0.5 rounded-full mb-2" style={{ background: color, opacity: 0.7 }} />
-      <div className="text-[10px] font-mono text-[#6b7280] mb-1">{id}</div>
-      <div className="text-xs text-[#e6edf3] leading-tight group-hover:text-white transition-colors">{title}</div>
+      <div className="text-[10px] font-mono text-[var(--color-info)] mb-1">{id}</div>
+      <div className="text-xs text-[var(--color-text-primary)] leading-tight group-hover:text-white transition-colors">{title}</div>
     </div>
   )
 }
@@ -169,9 +169,9 @@ export default function Dashboard({ onSelectAlert, onOpenQueue, onOpenApprovals 
                     <stop offset="95%" stopColor="#ef4444" stopOpacity={0} />
                   </linearGradient>
                 </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#21262d" />
-                <XAxis dataKey="time" tick={{ fontSize: 10, fill: '#6b7280', fontFamily: 'JetBrains Mono' }} />
-                <YAxis domain={[0, 100]} tick={{ fontSize: 10, fill: '#6b7280', fontFamily: 'JetBrains Mono' }} />
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
+                <XAxis dataKey="time" tick={{ fontSize: 10, fill: 'var(--color-info)', fontFamily: 'JetBrains Mono' }} />
+                <YAxis domain={[0, 100]} tick={{ fontSize: 10, fill: 'var(--color-info)', fontFamily: 'JetBrains Mono' }} />
                 <Tooltip content={<ChartTooltip />} />
                 <Area type="monotone" dataKey="score" stroke="#ef4444" strokeWidth={2} fill="url(#riskGrad)" dot={false} />
               </AreaChart>
@@ -185,9 +185,9 @@ export default function Dashboard({ onSelectAlert, onOpenQueue, onOpenApprovals 
           <div className="px-2 py-3" style={{ height: 180 }}>
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={attackTypeData} layout="vertical" margin={{ top: 4, right: 16, bottom: 0, left: 60 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#21262d" horizontal={false} />
-                <XAxis type="number" tick={{ fontSize: 10, fill: '#6b7280', fontFamily: 'JetBrains Mono' }} />
-                <YAxis type="category" dataKey="name" tick={{ fontSize: 10, fill: '#8b949e', fontFamily: 'JetBrains Mono' }} width={60} />
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" horizontal={false} />
+                <XAxis type="number" tick={{ fontSize: 10, fill: 'var(--color-info)', fontFamily: 'JetBrains Mono' }} />
+                <YAxis type="category" dataKey="name" tick={{ fontSize: 10, fill: 'var(--color-text-secondary)', fontFamily: 'JetBrains Mono' }} width={60} />
                 <Tooltip content={<ChartTooltip />} />
                 <Bar dataKey="count" fill="#00d4ff" opacity={0.7} radius={[0, 2, 2, 0]} />
               </BarChart>
@@ -206,7 +206,7 @@ export default function Dashboard({ onSelectAlert, onOpenQueue, onOpenApprovals 
             </div>
             <button
               onClick={onOpenQueue}
-              className="text-[10px] px-2 py-0.5 rounded border border-[#21262d] text-[#8b949e] hover:text-[#00d4ff] hover:border-[#00d4ff40] transition-colors"
+              className="text-[10px] px-2 py-0.5 rounded border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:text-[#00d4ff] hover:border-[#00d4ff40] transition-colors"
             >
               Open triage queue
             </button>
@@ -215,9 +215,9 @@ export default function Dashboard({ onSelectAlert, onOpenQueue, onOpenApprovals 
         <div className="overflow-x-auto">
           <table className="w-full text-xs">
             <thead>
-              <tr className="border-b border-[#21262d]">
+              <tr className="border-b border-[var(--color-border)]">
                 {['Timestamp', 'Risk', 'Severity', 'Source IP', 'Attack Type', 'ATT&CK ID', 'Status', 'Analyst'].map(h => (
-                  <th key={h} className="px-4 py-2.5 text-left text-[10px] uppercase tracking-widest text-[#6b7280] font-semibold whitespace-nowrap">{h}</th>
+                  <th key={h} className="px-4 py-2.5 text-left text-[10px] uppercase tracking-widest text-[var(--color-info)] font-semibold whitespace-nowrap">{h}</th>
                 ))}
               </tr>
             </thead>
@@ -226,16 +226,16 @@ export default function Dashboard({ onSelectAlert, onOpenQueue, onOpenApprovals 
                 <tr
                   key={alert.id}
                   onClick={() => onSelectAlert(alert.id)}
-                  className="border-b border-[#21262d] hover:bg-[#1c2128] cursor-pointer group transition-colors"
+                  className="border-b border-[var(--color-border)] hover:bg-[var(--color-surface-2)] cursor-pointer group transition-colors"
                 >
-                  <td className="px-4 py-2.5 font-mono text-[#8b949e] whitespace-nowrap">{alert.timestamp}</td>
+                  <td className="px-4 py-2.5 font-mono text-[var(--color-text-secondary)] whitespace-nowrap">{alert.timestamp}</td>
                   <td className="px-4 py-2.5"><RiskBadge score={alert.riskScore} /></td>
                   <td className="px-4 py-2.5"><SeverityBadge severity={alert.severity} /></td>
-                  <td className="px-4 py-2.5 font-mono text-[#e6edf3] whitespace-nowrap">{alert.sourceIP}</td>
-                  <td className="px-4 py-2.5 text-[#e6edf3] group-hover:text-[#00d4ff] transition-colors whitespace-nowrap">{alert.attackType}</td>
+                  <td className="px-4 py-2.5 font-mono text-[var(--color-text-primary)] whitespace-nowrap">{alert.sourceIP}</td>
+                  <td className="px-4 py-2.5 text-[var(--color-text-primary)] group-hover:text-[#00d4ff] transition-colors whitespace-nowrap">{alert.attackType}</td>
                   <td className="px-4 py-2.5 font-mono text-[#a855f7] whitespace-nowrap">{alert.mitreId}</td>
                   <td className="px-4 py-2.5"><AlertStatusPill status={alert.status as any} /></td>
-                  <td className="px-4 py-2.5 text-[#8b949e] whitespace-nowrap">{alert.analyst}</td>
+                  <td className="px-4 py-2.5 text-[var(--color-text-secondary)] whitespace-nowrap">{alert.analyst}</td>
                 </tr>
               ))}
             </tbody>
@@ -243,7 +243,7 @@ export default function Dashboard({ onSelectAlert, onOpenQueue, onOpenApprovals 
         </div>
         <button
           onClick={onOpenQueue}
-          className="w-full py-2.5 text-[11px] text-[#8b949e] hover:text-[#00d4ff] border-t border-[#21262d] transition-colors"
+          className="w-full py-2.5 text-[11px] text-[var(--color-text-secondary)] hover:text-[#00d4ff] border-t border-[var(--color-border)] transition-colors"
         >
           View all {alerts.length} alerts in the triage queue
         </button>
@@ -271,7 +271,7 @@ export default function Dashboard({ onSelectAlert, onOpenQueue, onOpenApprovals 
               <div key={col}>
                 <div className="flex items-center gap-2 mb-2">
                   <span className="text-[10px] font-semibold uppercase tracking-widest" style={{ color: colColors[col] }}>{col}</span>
-                  <span className="text-[10px] font-mono text-[#484f58]">({colCases.length})</span>
+                  <span className="text-[10px] font-mono text-[var(--color-text-muted)]">({colCases.length})</span>
                 </div>
                 <div className="space-y-2">
                   {colCases.map(c => <KanbanCard key={c.id} {...c} />)}

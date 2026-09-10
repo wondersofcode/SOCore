@@ -26,7 +26,10 @@ from .models import (
     Case,
     CreateCaseRequest,
     Event,
+    Profile,
     UpdateCaseRequest,
+    UpdateProfileRequest,
+    UpdateRoleRequest,
     WazuhEvent,
     now_full,
 )
@@ -76,7 +79,84 @@ def health() -> dict:
 
 @app.get("/api/me")
 def me(current_user: auth.CurrentUser = Depends(auth.get_current_user)) -> dict:
-    return {"email": current_user.email, "role": current_user.role, "display_name": current_user.display_name}
+    profile = store.get_profile(current_user.user_id)
+    return {
+        "email": current_user.email,
+        "role": current_user.role,
+        "display_name": current_user.display_name,
+        "firstName": profile.firstName if profile else "",
+        "lastName": profile.lastName if profile else "",
+        "avatarUrl": profile.avatarUrl if profile else "",
+        "themePreference": profile.themePreference if profile else "dark",
+    }
+
+
+@app.patch("/api/profile", response_model=Profile)
+def update_my_profile(
+    req: UpdateProfileRequest,
+    current_user: auth.CurrentUser = Depends(auth.get_current_user),
+) -> Profile:
+    """Self-service profile edit (name, avatar, theme) from the Settings page."""
+    updated = store.update_profile(
+        current_user.user_id,
+        first_name=req.firstName,
+        last_name=req.lastName,
+        avatar_url=req.avatarUrl,
+        theme_preference=req.themePreference,
+    )
+    if updated is None:
+        raise HTTPException(status_code=404, detail="Profile not found")
+    return updated
+
+
+# ── Admin: registration approval + role management ──────────────────────────
+@app.get("/api/admin/pending-count")
+def admin_pending_count(current_user: auth.CurrentUser = Depends(auth.require_admin)) -> dict:
+    return {"count": store.count_pending_profiles()}
+
+
+@app.get("/api/admin/users", response_model=list[Profile])
+def admin_list_users(current_user: auth.CurrentUser = Depends(auth.require_admin)) -> list[Profile]:
+    return store.all_profiles()
+
+
+@app.post("/api/admin/users/{user_id}/approve", response_model=Profile)
+def admin_approve_user(
+    user_id: str,
+    current_user: auth.CurrentUser = Depends(auth.require_admin),
+) -> Profile:
+    updated = store.set_profile_status(user_id, "approved")
+    if updated is None:
+        raise HTTPException(status_code=404, detail="User not found")
+    actions.send_slack_alert(f"{current_user.display_name} approved {updated.email}")
+    logger.info("Admin %s approved user %s", current_user.email, updated.email)
+    return updated
+
+
+@app.post("/api/admin/users/{user_id}/reject", response_model=Profile)
+def admin_reject_user(
+    user_id: str,
+    current_user: auth.CurrentUser = Depends(auth.require_admin),
+) -> Profile:
+    updated = store.set_profile_status(user_id, "rejected")
+    if updated is None:
+        raise HTTPException(status_code=404, detail="User not found")
+    actions.send_slack_alert(f"{current_user.display_name} rejected {updated.email}")
+    logger.info("Admin %s rejected user %s", current_user.email, updated.email)
+    return updated
+
+
+@app.patch("/api/admin/users/{user_id}/role", response_model=Profile)
+def admin_update_role(
+    user_id: str,
+    req: UpdateRoleRequest,
+    current_user: auth.CurrentUser = Depends(auth.require_admin),
+) -> Profile:
+    updated = store.set_profile_role(user_id, req.role.value)
+    if updated is None:
+        raise HTTPException(status_code=404, detail="User not found")
+    logger.info("Admin %s set %s's role to %s", current_user.email, updated.email, req.role.value)
+    return updated
 
 
 # ── Ingestion: Wazuh -> scored alert ────────────────────────────────────────

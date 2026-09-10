@@ -196,6 +196,43 @@ class DecisionRecord(BaseModel):
     reason: str
 
 
+# ── User profiles (registration approval, roles, personalization) ──────────
+class ProfileStatus(str, Enum):
+    pending = "pending"
+    approved = "approved"
+    rejected = "rejected"
+
+
+class ProfileRole(str, Enum):
+    l1_analyst = "l1_analyst"
+    l2_analyst = "l2_analyst"
+    admin = "admin"
+
+
+class Profile(BaseModel):
+    id: str
+    email: str
+    displayName: str = ""
+    firstName: str = ""
+    lastName: str = ""
+    avatarUrl: str = ""
+    role: ProfileRole
+    status: ProfileStatus
+    themePreference: str = "dark"
+    createdAt: str = ""
+
+
+class UpdateRoleRequest(BaseModel):
+    role: ProfileRole
+
+
+class UpdateProfileRequest(BaseModel):
+    firstName: Optional[str] = None
+    lastName: Optional[str] = None
+    avatarUrl: Optional[str] = None
+    themePreference: Optional[str] = None
+
+
 def now_hms() -> str:
     return datetime.utcnow().strftime("%H:%M:%S")
 

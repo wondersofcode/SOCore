@@ -11,7 +11,7 @@ const sevColor: Record<Severity, string> = {
   High: '#f97316',
   Medium: '#eab308',
   Low: '#3b82f6',
-  Informational: '#6b7280',
+  Informational: 'var(--color-info)',
 }
 
 const sevRank: Record<Severity, number> = {
@@ -29,14 +29,14 @@ function formatAlertDate(timestamp: string): string {
 
 // ── Reputation bar (enrichment signal — only lives on this screen) ──────────
 function RepBar({ label, score }: { label: string; score: number }) {
-  const color = score >= 75 ? '#ef4444' : score >= 40 ? '#f97316' : score > 0 ? '#eab308' : '#30363d'
+  const color = score >= 75 ? '#ef4444' : score >= 40 ? '#f97316' : score > 0 ? '#eab308' : 'var(--color-border-bright)'
   return (
     <div className="flex items-center gap-1.5">
-      <span className="text-[9px] font-mono text-[#484f58] w-5">{label}</span>
-      <div className="w-12 h-1 rounded-full bg-[#21262d] overflow-hidden">
+      <span className="text-[9px] font-mono text-[var(--color-text-muted)] w-5">{label}</span>
+      <div className="w-12 h-1 rounded-full bg-[var(--color-border)] overflow-hidden">
         <div className="h-full rounded-full" style={{ width: `${score}%`, background: color }} />
       </div>
-      <span className="text-[10px] font-mono w-6" style={{ color: score > 0 ? color : '#484f58' }}>{score}</span>
+      <span className="text-[10px] font-mono w-6" style={{ color: score > 0 ? color : 'var(--color-text-muted)' }}>{score}</span>
     </div>
   )
 }
@@ -52,8 +52,8 @@ function Facet({
   onToggle: (v: string) => void
 }) {
   return (
-    <div className="border-b border-[#21262d] px-3 py-3">
-      <div className="text-[10px] font-semibold tracking-widest text-[#6b7280] mb-2">{title}</div>
+    <div className="border-b border-[var(--color-border)] px-3 py-3">
+      <div className="text-[10px] font-semibold tracking-widest text-[var(--color-info)] mb-2">{title}</div>
       <div className="space-y-0.5">
         {options.map(opt => {
           const on = selected.includes(opt)
@@ -64,21 +64,21 @@ function Facet({
               className="w-full flex items-center gap-2 px-2 py-1 rounded text-[11px] transition-colors"
               style={{
                 background: on ? '#00d4ff12' : 'transparent',
-                color: on ? '#e6edf3' : '#8b949e',
+                color: on ? 'var(--color-text-primary)' : 'var(--color-text-secondary)',
               }}
             >
               <span
                 className="w-3 h-3 rounded-[3px] border flex items-center justify-center shrink-0"
-                style={{ borderColor: on ? '#00d4ff' : '#30363d', background: on ? '#00d4ff' : 'transparent' }}
+                style={{ borderColor: on ? '#00d4ff' : 'var(--color-border-bright)', background: on ? '#00d4ff' : 'transparent' }}
               >
                 {on && (
                   <svg width="8" height="8" viewBox="0 0 8 8" fill="none">
-                    <path d="M1.5 4l1.75 1.75L6.5 2.5" stroke="#0d1117" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+                    <path d="M1.5 4l1.75 1.75L6.5 2.5" stroke="var(--color-background)" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
                   </svg>
                 )}
               </span>
               <span className="truncate">{opt}</span>
-              <span className="ml-auto text-[10px] font-mono text-[#484f58]">{counts[opt] ?? 0}</span>
+              <span className="ml-auto text-[10px] font-mono text-[var(--color-text-muted)]">{counts[opt] ?? 0}</span>
             </button>
           )
         })}
@@ -146,9 +146,9 @@ export default function Alerts({ onSelectAlert }: { onSelectAlert: (id: string) 
   return (
     <div className="flex gap-3 items-start">
       {/* ── Filter rail ─────────────────────────────────────────────────── */}
-      <aside className="w-52 shrink-0 bg-[#161b22] border border-[#21262d] rounded-lg sticky top-0">
-        <div className="flex items-center justify-between px-3 py-2.5 border-b border-[#21262d]">
-          <span className="text-[11px] font-semibold text-[#e6edf3]">Filters</span>
+      <aside className="w-52 shrink-0 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg sticky top-0">
+        <div className="flex items-center justify-between px-3 py-2.5 border-b border-[var(--color-border)]">
+          <span className="text-[11px] font-semibold text-[var(--color-text-primary)]">Filters</span>
           {activeFilterCount > 0 && (
             <button onClick={clearFilters} className="text-[10px] text-[#00d4ff] hover:underline">
               Clear {activeFilterCount}
@@ -164,7 +164,7 @@ export default function Alerts({ onSelectAlert }: { onSelectAlert: (id: string) 
           <button
             onClick={() => setUnassignedOnly(v => !v)}
             className="w-full flex items-center justify-between px-2 py-1.5 rounded text-[11px] transition-colors"
-            style={{ background: unassignedOnly ? '#f9731615' : 'transparent', color: unassignedOnly ? '#f97316' : '#8b949e' }}
+            style={{ background: unassignedOnly ? '#f9731615' : 'transparent', color: unassignedOnly ? '#f97316' : 'var(--color-text-secondary)' }}
           >
             <span>Needs an owner</span>
             <span className="font-mono text-[10px]">{unassignedCount}</span>
@@ -175,25 +175,25 @@ export default function Alerts({ onSelectAlert }: { onSelectAlert: (id: string) 
       {/* ── Queue ───────────────────────────────────────────────────────── */}
       <div className="flex-1 min-w-0 space-y-3">
         {/* Triage summary strip — queue health, not dashboard KPIs */}
-        <div className="flex items-stretch bg-[#161b22] border border-[#21262d] rounded-lg divide-x divide-[#21262d]">
+        <div className="flex items-stretch bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg divide-x divide-[var(--color-border)]">
           {[
-            { label: 'In queue', value: rows.length, color: '#e6edf3' },
+            { label: 'In queue', value: rows.length, color: 'var(--color-text-primary)' },
             { label: 'Awaiting triage', value: newCount, color: '#00d4ff' },
             { label: 'No owner', value: unassignedCount, color: '#f97316' },
             { label: 'Critical open', value: criticalOpen, color: '#ef4444' },
             { label: 'Needs approval', value: awaitingApproval, color: '#f97316' },
           ].map(s => (
             <div key={s.label} className="flex-1 px-4 py-2.5">
-              <div className="text-[10px] text-[#6b7280]">{s.label}</div>
+              <div className="text-[10px] text-[var(--color-info)]">{s.label}</div>
               <div className="text-xl font-mono font-bold leading-tight" style={{ color: s.color }}>{s.value}</div>
             </div>
           ))}
           <div className="flex items-center gap-2 px-4">
-            <span className="text-[10px] text-[#6b7280]">Sort</span>
+            <span className="text-[10px] text-[var(--color-info)]">Sort</span>
             <select
               value={sort}
               onChange={e => setSort(e.target.value as SortKey)}
-              className="bg-[#0d1117] border border-[#21262d] rounded px-2 py-1 text-[11px] text-[#e6edf3] focus:outline-none focus:border-[#00d4ff40]"
+              className="bg-[var(--color-background)] border border-[var(--color-border)] rounded px-2 py-1 text-[11px] text-[var(--color-text-primary)] focus:outline-none focus:border-[#00d4ff40]"
             >
               <option value="time">Newest first</option>
               <option value="risk">Highest risk</option>
@@ -202,7 +202,7 @@ export default function Alerts({ onSelectAlert }: { onSelectAlert: (id: string) 
             </select>
             <button
               onClick={() => setDense(d => !d)}
-              className="text-[10px] px-2 py-1 rounded border border-[#21262d] text-[#8b949e] hover:text-[#e6edf3] hover:border-[#30363d] transition-colors"
+              className="text-[10px] px-2 py-1 rounded border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:border-[var(--color-border-bright)] transition-colors"
             >
               {dense ? 'Comfortable' : 'Compact'}
             </button>
@@ -217,12 +217,12 @@ export default function Alerts({ onSelectAlert }: { onSelectAlert: (id: string) 
               {['Assign to me', 'Escalate to case', 'Mark resolved'].map(a => (
                 <button
                   key={a}
-                  className="text-[11px] px-2.5 py-1 rounded border border-[#00d4ff30] text-[#e6edf3] hover:bg-[#00d4ff15] transition-colors"
+                  className="text-[11px] px-2.5 py-1 rounded border border-[#00d4ff30] text-[var(--color-text-primary)] hover:bg-[#00d4ff15] transition-colors"
                 >
                   {a}
                 </button>
               ))}
-              <button onClick={() => setSelected([])} className="text-[11px] text-[#6b7280] hover:text-[#e6edf3] px-1">
+              <button onClick={() => setSelected([])} className="text-[11px] text-[var(--color-info)] hover:text-[var(--color-text-primary)] px-1">
                 Clear
               </button>
             </div>
@@ -230,11 +230,11 @@ export default function Alerts({ onSelectAlert }: { onSelectAlert: (id: string) 
         )}
 
         {/* Queue table */}
-        <div className="bg-[#161b22] border border-[#21262d] rounded-lg overflow-hidden">
+        <div className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-xs">
               <thead>
-                <tr className="border-b border-[#21262d] bg-[#0d1117]">
+                <tr className="border-b border-[var(--color-border)] bg-[var(--color-background)]">
                   <th className="pl-4 pr-2 py-2 w-8">
                     <input
                       type="checkbox"
@@ -244,7 +244,7 @@ export default function Alerts({ onSelectAlert }: { onSelectAlert: (id: string) 
                     />
                   </th>
                   {['Alert', 'Risk', 'Detected', 'Source', 'Technique', 'Reputation', 'State', 'Owner'].map(h => (
-                    <th key={h} className="px-3 py-2 text-left text-[10px] tracking-widest text-[#6b7280] font-semibold whitespace-nowrap">
+                    <th key={h} className="px-3 py-2 text-left text-[10px] tracking-widest text-[var(--color-info)] font-semibold whitespace-nowrap">
                       {h}
                     </th>
                   ))}
@@ -258,7 +258,7 @@ export default function Alerts({ onSelectAlert }: { onSelectAlert: (id: string) 
                     <tr
                       key={a.id}
                       onClick={() => onSelectAlert(a.id)}
-                      className="border-b border-[#21262d] hover:bg-[#1c2128] cursor-pointer group transition-colors"
+                      className="border-b border-[var(--color-border)] hover:bg-[var(--color-surface-2)] cursor-pointer group transition-colors"
                       style={checked ? { background: '#00d4ff08' } : undefined}
                     >
                       <td className={`pl-4 pr-2 ${rowPad}`} onClick={e => e.stopPropagation()}>
@@ -275,10 +275,10 @@ export default function Alerts({ onSelectAlert }: { onSelectAlert: (id: string) 
                         <div className="flex items-center gap-2.5">
                           <span className="w-0.5 h-7 rounded-full shrink-0" style={{ background: sevColor[a.severity] }} />
                           <div className="min-w-0">
-                            <div className="text-[#e6edf3] group-hover:text-[#00d4ff] transition-colors truncate">
+                            <div className="text-[var(--color-text-primary)] group-hover:text-[#00d4ff] transition-colors truncate">
                               {a.attackType}
                             </div>
-                            <div className="text-[10px] font-mono text-[#484f58]">{a.id}</div>
+                            <div className="text-[10px] font-mono text-[var(--color-text-muted)]">{a.id}</div>
                           </div>
                         </div>
                       </td>
@@ -290,21 +290,21 @@ export default function Alerts({ onSelectAlert }: { onSelectAlert: (id: string) 
                         )}
                       </td>
 
-                      <td className={`px-3 ${rowPad} font-mono text-[#8b949e] whitespace-nowrap`}>
+                      <td className={`px-3 ${rowPad} font-mono text-[var(--color-text-secondary)] whitespace-nowrap`}>
                         {a.timestamp.slice(11)}
-                        <span className="text-[#484f58] text-[10px] ml-1.5">{formatAlertDate(a.timestamp)}</span>
+                        <span className="text-[var(--color-text-muted)] text-[10px] ml-1.5">{formatAlertDate(a.timestamp)}</span>
                       </td>
 
                       <td className={`px-3 ${rowPad} whitespace-nowrap`}>
-                        <div className="font-mono text-[#e6edf3]">{a.sourceIP}</div>
-                        <div className="text-[10px] text-[#484f58] truncate max-w-[140px]">
+                        <div className="font-mono text-[var(--color-text-primary)]">{a.sourceIP}</div>
+                        <div className="text-[10px] text-[var(--color-text-muted)] truncate max-w-[140px]">
                           {a.country === 'INTERNAL' ? 'Internal network' : `${a.country} · ${a.asn.split(' ')[0]}`}
                         </div>
                       </td>
 
                       <td className={`px-3 ${rowPad} whitespace-nowrap`}>
                         <span className="font-mono text-[#a855f7]">{a.mitreId}</span>
-                        <div className="text-[10px] text-[#484f58] truncate max-w-[130px]">{a.mitreName}</div>
+                        <div className="text-[10px] text-[var(--color-text-muted)] truncate max-w-[130px]">{a.mitreName}</div>
                       </td>
 
                       {/* Enrichment — the column the dashboard never shows */}
@@ -315,7 +315,7 @@ export default function Alerts({ onSelectAlert }: { onSelectAlert: (id: string) 
                             <RepBar label="AIP" score={a.abuseScore} />
                           </div>
                         ) : (
-                          <span className="text-[10px] font-mono text-[#484f58]">no reputation data</span>
+                          <span className="text-[10px] font-mono text-[var(--color-text-muted)]">no reputation data</span>
                         )}
                       </td>
 
@@ -325,16 +325,16 @@ export default function Alerts({ onSelectAlert }: { onSelectAlert: (id: string) 
                         {a.analyst === 'Unassigned' ? (
                           <button
                             onClick={e => e.stopPropagation()}
-                            className="text-[10px] px-2 py-0.5 rounded border border-[#30363d] text-[#8b949e] hover:border-[#00d4ff40] hover:text-[#00d4ff] transition-colors"
+                            className="text-[10px] px-2 py-0.5 rounded border border-[var(--color-border-bright)] text-[var(--color-text-secondary)] hover:border-[#00d4ff40] hover:text-[#00d4ff] transition-colors"
                           >
                             Claim
                           </button>
                         ) : (
                           <div className="flex items-center gap-1.5">
-                            <span className="w-5 h-5 rounded-full bg-[#21262d] text-[9px] font-mono text-[#8b949e] flex items-center justify-center">
+                            <span className="w-5 h-5 rounded-full bg-[var(--color-border)] text-[9px] font-mono text-[var(--color-text-secondary)] flex items-center justify-center">
                               {a.analyst.replace('. ', '').slice(0, 2).toUpperCase()}
                             </span>
-                            <span className="text-[#8b949e]">{a.analyst}</span>
+                            <span className="text-[var(--color-text-secondary)]">{a.analyst}</span>
                           </div>
                         )}
                       </td>
@@ -347,8 +347,8 @@ export default function Alerts({ onSelectAlert }: { onSelectAlert: (id: string) 
 
           {rows.length === 0 && (
             <div className="flex flex-col items-center justify-center py-14 gap-2">
-              <div className="text-sm text-[#e6edf3]">Nothing matches these filters</div>
-              <div className="text-xs text-[#6b7280]">Widen the severity or state selection to see more of the queue.</div>
+              <div className="text-sm text-[var(--color-text-primary)]">Nothing matches these filters</div>
+              <div className="text-xs text-[var(--color-info)]">Widen the severity or state selection to see more of the queue.</div>
               <button onClick={clearFilters} className="mt-1 text-xs text-[#00d4ff] hover:underline">
                 Clear all filters
               </button>
@@ -356,7 +356,7 @@ export default function Alerts({ onSelectAlert }: { onSelectAlert: (id: string) 
           )}
 
           {rows.length > 0 && (
-            <div className="flex items-center justify-between px-4 py-2 border-t border-[#21262d] text-[10px] font-mono text-[#484f58]">
+            <div className="flex items-center justify-between px-4 py-2 border-t border-[var(--color-border)] text-[10px] font-mono text-[var(--color-text-muted)]">
               <span>Showing {rows.length} of {alerts.length} alerts</span>
               <span className="flex items-center gap-1.5">
                 <SeverityDot severity="Critical" />

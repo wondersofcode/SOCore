@@ -24,6 +24,7 @@ from .models import (
     CaseTask,
     DecisionRecord,
     Event,
+    Profile,
     now_hms,
 )
 
@@ -69,6 +70,21 @@ def _row_to_event(row: dict) -> Event:
         agentId=row["agent_id"] or "",
         agentName=row["agent_name"] or "",
         alertId=row["alert_id"],
+    )
+
+
+def _row_to_profile(row: dict) -> Profile:
+    return Profile(
+        id=str(row["id"]),
+        email=row["email"],
+        displayName=row["display_name"] or "",
+        firstName=row.get("first_name") or "",
+        lastName=row.get("last_name") or "",
+        avatarUrl=row.get("avatar_url") or "",
+        role=row["role"],
+        status=row["status"],
+        themePreference=row.get("theme_preference") or "dark",
+        createdAt=str(row["created_at"]) if row.get("created_at") else "",
     )
 
 
@@ -354,6 +370,58 @@ class AlertStore:
         with db.get_cursor(commit=True) as cur:
             cur.execute("UPDATE cases SET tasks=%s, updated_at=%s WHERE id=%s", (json.dumps(tasks), now_hms(), case_id))
         return self.get_case(case_id)
+
+
+    # ── profiles: registration approval, roles, personalization ────────────
+    def all_profiles(self) -> list[Profile]:
+        with db.get_cursor() as cur:
+            cur.execute("SELECT * FROM profiles ORDER BY created_at DESC")
+            return [_row_to_profile(r) for r in cur.fetchall()]
+
+    def get_profile(self, user_id: str) -> Profile | None:
+        with db.get_cursor() as cur:
+            cur.execute("SELECT * FROM profiles WHERE id=%s", (user_id,))
+            row = cur.fetchone()
+            return _row_to_profile(row) if row else None
+
+    def count_pending_profiles(self) -> int:
+        with db.get_cursor() as cur:
+            cur.execute("SELECT count(*) AS n FROM profiles WHERE status='pending'")
+            return cur.fetchone()["n"]
+
+    def set_profile_status(self, user_id: str, new_status: str) -> Profile | None:
+        with db.get_cursor(commit=True) as cur:
+            cur.execute("UPDATE profiles SET status=%s WHERE id=%s", (new_status, user_id))
+        return self.get_profile(user_id)
+
+    def set_profile_role(self, user_id: str, new_role: str) -> Profile | None:
+        with db.get_cursor(commit=True) as cur:
+            cur.execute("UPDATE profiles SET role=%s WHERE id=%s", (new_role, user_id))
+        return self.get_profile(user_id)
+
+    def update_profile(
+        self,
+        user_id: str,
+        first_name: str | None = None,
+        last_name: str | None = None,
+        avatar_url: str | None = None,
+        theme_preference: str | None = None,
+    ) -> Profile | None:
+        fields, values = [], []
+        for column, value in (
+            ("first_name", first_name),
+            ("last_name", last_name),
+            ("avatar_url", avatar_url),
+            ("theme_preference", theme_preference),
+        ):
+            if value is not None:
+                fields.append(f"{column}=%s")
+                values.append(value)
+        if fields:
+            values.append(user_id)
+            with db.get_cursor(commit=True) as cur:
+                cur.execute(f"UPDATE profiles SET {', '.join(fields)} WHERE id=%s", values)
+        return self.get_profile(user_id)
 
 
 store = AlertStore()
