@@ -138,9 +138,3 @@ Layihə 4 nəfərlik komanda tərəfindən aparılır:
 | **Backend / AI** | FastAPI backend, korrelyasiya məntiqi, Gemini AI inteqrasiyası |
 | **Threat Intel / SOAR** | MISP, Cortex, Shuffle inteqrasiyaları və workflow-ları |
 | **Detection / Docs** | Wazuh detection qaydaları, sənədləşdirmə, test ssenariləri |
-
-## Lisenziya
-
-Bu, tələbə portfolio layihəsidir. Kommersiya məhsulu deyil.
-
-Repo: [github.com/wondersofcode/SOCore](https://github.com/wondersofcode/SOCore)
