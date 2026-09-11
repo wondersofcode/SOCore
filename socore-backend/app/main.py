@@ -442,19 +442,25 @@ def reports_export(
     current_user: auth.CurrentUser = Depends(auth.get_current_user),
 ) -> StreamingResponse:
     """Downloads the shift report (same window as the AI Shift Summary card)
-    as an .xlsx workbook: Summary, Alerts, Cases and Decisions sheets."""
+    as an enterprise-style .xlsx workbook: Executive Summary (KPIs, AI recap,
+    charts), Alerts, Cases, Events and Decisions sheets."""
     if hours not in (8, 12, 24):
         raise HTTPException(status_code=400, detail="hours must be 8, 12 or 24")
     alerts = store.all()
     cases = store.all_cases()
     summary, _cached, _count = shift_summary.get_summary(alerts, cases, hours)
+    # A generous but bounded window of recent events (ordered newest-first) —
+    # enough to cover any 8/12/24h window without pulling the entire history.
+    recent_events = store.all_events(limit=2000)
     workbook_bytes = report_export.build_workbook(
         alerts=alerts,
         cases=cases,
         decisions=store.decisions(),
+        events=recent_events,
         hours=hours,
         summary_text=summary,
         generated_at=now_full(),
+        generated_by=current_user.display_name,
     )
     filename = f"SOCore_Shift_Report_{datetime.now(timezone.utc).strftime('%Y-%m-%d')}_{hours}h.xlsx"
     return StreamingResponse(
