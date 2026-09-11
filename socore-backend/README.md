@@ -3,7 +3,9 @@
 Detection ilə dashboard arasındakı "beyin": Wazuh alertini qəbul edir, risk
 skoru hesablayır, AI (Groq) izahı əlavə edir, saxlayır və dashboard-a API
 verir. Human-in-the-Loop təsdiqi ilə cavab tədbirini (firewall blok dry-run +
-Slack) icra edir.
+Slack) icra edir. Groq həmçinin Dashboard-dakı AI assistant chat-ı və
+Reports-dakı AI shift summary-ni işlədir — hər ikisi real data-ya
+(alerts/cases/pending) əsaslanır, uydurma cavab vermir.
 
 ## İşə salmaq
 
@@ -34,13 +36,21 @@ data ilə açılır (yəni backend olmadan da sınaya bilərsən).
 
 | Metod | Yol | Nə edir |
 |---|---|---|
-| GET  | /api/health | Status + AI aktivdirmi |
+| GET  | /api/health | Status, AI aktivdirmi, hər inteqrasiyanın real connection statusu |
+| GET  | /api/me | Cari istifadəçinin profili (ad, rol, tema, saat qurşağı) |
+| PATCH | /api/profile | Profil yenilə (ad, avatar, tema, saat qurşağı) |
 | POST | /api/ingest | Wazuh alertini qəbul edir, skorlayır, izah verir |
 | GET  | /api/alerts | Bütün alertlər (dashboard bunu oxuyur) |
 | GET  | /api/alerts/{id} | Tək alert |
 | GET  | /api/pending | Təsdiq gözləyənlər |
 | GET  | /api/decisions | Audit trail |
 | POST | /api/approve/{id} | Analitik təsdiqi/rəddi (HITL) |
+| GET  | /api/events, /api/events/{id}, /api/events/count | Xam Wazuh hadisə tarixçəsi |
+| GET/POST/PATCH | /api/cases* | Case idarəetməsi (yaratma, qeyd, tapşırıq, status) |
+| POST | /api/assistant/chat | AI chat — real alert/case/approval data-sına əsaslanaraq Groq ilə cavab |
+| GET  | /api/reports/shift-summary | AI növbə xülasəsi (8/12/24 saat, 5 dəq keş) |
+| GET  | /api/reports/export | Növbə hesabatını Excel (.xlsx) kimi endirir |
+| GET/POST/PATCH | /api/admin/* | İstifadəçi təsdiqi, rədd, rol dəyişikliyi (yalnız admin) |
 
 ## Wazuh-u qoşmaq
 

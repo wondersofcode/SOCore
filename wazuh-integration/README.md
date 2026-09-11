@@ -3,6 +3,12 @@
 Custom Wazuh manager integration that forwards attack alerts to
 `socore-backend`'s `/api/ingest`.
 
+Two agents feed the same manager: the real Windows agent, and a second
+Wazuh agent installed directly on the SOCore VM itself (official `.deb`,
+enrolled against the manager's own `127.0.0.1:11514`/`1515`) so the VM's
+own SSH logins and system events are monitored too — both go through
+this exact same integration script and filtering.
+
 ## Deployment
 
 These two files live at `/var/ossec/integrations/` inside the
