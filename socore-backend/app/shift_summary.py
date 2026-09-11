@@ -29,7 +29,7 @@ _SYSTEM_INSTRUCTIONS = (
 )
 
 
-def _parse_naive_utc(ts: str) -> datetime | None:
+def parse_naive_utc(ts: str) -> datetime | None:
     """Alert.timestamp is 'YYYY-MM-DD HH:MM:SS', implicitly UTC, no marker."""
     if not ts:
         return None
@@ -39,7 +39,7 @@ def _parse_naive_utc(ts: str) -> datetime | None:
         return None
 
 
-def _parse_iso(ts: str) -> datetime | None:
+def parse_iso(ts: str) -> datetime | None:
     if not ts:
         return None
     try:
@@ -49,10 +49,19 @@ def _parse_iso(ts: str) -> datetime | None:
         return None
 
 
-def _facts(alerts: list[Alert], cases: list[Case], hours: int) -> dict:
+def windowed_alerts(alerts: list[Alert], hours: int) -> list[Alert]:
     cutoff = datetime.now(timezone.utc).timestamp() - hours * 3600
-    windowed = [a for a in alerts if (dt := _parse_naive_utc(a.timestamp)) and dt.timestamp() >= cutoff]
-    opened_cases = [c for c in cases if (dt := _parse_iso(c.createdAt)) and dt.timestamp() >= cutoff]
+    return [a for a in alerts if (dt := parse_naive_utc(a.timestamp)) and dt.timestamp() >= cutoff]
+
+
+def windowed_cases(cases: list[Case], hours: int) -> list[Case]:
+    cutoff = datetime.now(timezone.utc).timestamp() - hours * 3600
+    return [c for c in cases if (dt := parse_iso(c.createdAt)) and dt.timestamp() >= cutoff]
+
+
+def _facts(alerts: list[Alert], cases: list[Case], hours: int) -> dict:
+    windowed = windowed_alerts(alerts, hours)
+    opened_cases = windowed_cases(cases, hours)
 
     severity_counts = Counter(a.severity.value for a in windowed)
     country_counts = Counter(a.country for a in windowed if a.country and a.country != "INTERNAL")

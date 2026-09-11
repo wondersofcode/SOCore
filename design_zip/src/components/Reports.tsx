@@ -47,6 +47,20 @@ function AiShiftSummaryCard() {
   const [data, setData] = useState<ShiftSummary | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(false)
+  const [exporting, setExporting] = useState(false)
+  const [exportError, setExportError] = useState(false)
+
+  const exportExcel = async () => {
+    setExporting(true)
+    setExportError(false)
+    try {
+      await api.exportReport(hours)
+    } catch {
+      setExportError(true)
+    } finally {
+      setExporting(false)
+    }
+  }
 
   const load = async (h: 8 | 12 | 24, refresh: boolean) => {
     setLoading(true)
@@ -94,6 +108,16 @@ function AiShiftSummaryCard() {
               <path d="M13.5 8a5.5 5.5 0 1 1-1.6-3.9M13.5 2.5v3.2h-3.2" />
             </svg>
           </button>
+          <button
+            onClick={exportExcel}
+            disabled={exporting}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[var(--color-border)] text-[11px] font-semibold text-[var(--color-text-secondary)] hover:text-[#22c55e] hover:border-[#22c55e40] transition-colors disabled:opacity-50"
+          >
+            <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M8 1.5v9M8 10.5L5 7.5M8 10.5l3-3M2.5 12v1.5a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1V12" />
+            </svg>
+            {exporting ? 'Exporting…' : 'Export to Excel'}
+          </button>
         </div>
       </div>
 
@@ -110,6 +134,7 @@ function AiShiftSummaryCard() {
           </div>
         </>
       )}
+      {exportError && <div className="text-[11px] text-[#ef4444] mt-2">Could not export — try again.</div>}
     </div>
   )
 }

@@ -111,4 +111,30 @@ export const api = {
   // Shift summary report (Reports page) — server caches per window for 5 minutes.
   shiftSummary: (hours: 8 | 12 | 24, refresh = false) =>
     req<ShiftSummary>(`/api/reports/shift-summary?hours=${hours}${refresh ? '&refresh=true' : ''}`, undefined, 20000),
+
+  // Downloads the shift report as an .xlsx file and triggers a browser save —
+  // not a JSON endpoint, so this bypasses req() and handles the blob directly.
+  exportReport: async (hours: 8 | 12 | 24): Promise<void> => {
+    const auth = await authHeaders()
+    const res = await fetch(`${BASE}/api/reports/export?hours=${hours}`, {
+      headers: auth,
+      signal: AbortSignal.timeout(20000),
+    })
+    if (!res.ok) throw new Error(`/api/reports/export -> ${res.status}`)
+    const blob = await res.blob()
+
+    const disposition = res.headers.get('Content-Disposition') ?? ''
+    const match = disposition.match(/filename="?([^"]+)"?/)
+    const today = new Date().toISOString().slice(0, 10)
+    const filename = match?.[1] ?? `SOCore_Shift_Report_${today}_${hours}h.xlsx`
+
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = filename
+    document.body.appendChild(a)
+    a.click()
+    a.remove()
+    URL.revokeObjectURL(url)
+  },
 }

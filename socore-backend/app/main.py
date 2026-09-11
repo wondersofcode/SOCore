@@ -13,11 +13,13 @@ Docs: http://localhost:8000/docs
 from __future__ import annotations
 
 import logging
+from datetime import datetime, timezone
 
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 
-from . import actions, ai_explainer, assistant, auth, db, enrichment, shift_summary
+from . import actions, ai_explainer, assistant, auth, db, enrichment, report_export, shift_summary
 from .correlation import correlate
 from .models import (
     AddNoteRequest,
@@ -431,4 +433,32 @@ def reports_shift_summary(
         alertCount=alert_count,
         generatedAt=now_full(),
         cached=cached,
+    )
+
+
+@app.get("/api/reports/export")
+def reports_export(
+    hours: int = 8,
+    current_user: auth.CurrentUser = Depends(auth.get_current_user),
+) -> StreamingResponse:
+    """Downloads the shift report (same window as the AI Shift Summary card)
+    as an .xlsx workbook: Summary, Alerts, Cases and Decisions sheets."""
+    if hours not in (8, 12, 24):
+        raise HTTPException(status_code=400, detail="hours must be 8, 12 or 24")
+    alerts = store.all()
+    cases = store.all_cases()
+    summary, _cached, _count = shift_summary.get_summary(alerts, cases, hours)
+    workbook_bytes = report_export.build_workbook(
+        alerts=alerts,
+        cases=cases,
+        decisions=store.decisions(),
+        hours=hours,
+        summary_text=summary,
+        generated_at=now_full(),
+    )
+    filename = f"SOCore_Shift_Report_{datetime.now(timezone.utc).strftime('%Y-%m-%d')}_{hours}h.xlsx"
+    return StreamingResponse(
+        iter([workbook_bytes]),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
