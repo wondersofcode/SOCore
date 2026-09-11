@@ -41,7 +41,7 @@
 - [Environment variables reference](#environment-variables-reference)
 - [API reference](#api-reference)
 - [Deployment](#deployment)
-- [Team](#team)
+- [Author](#author)
 
 ## What it does
 
@@ -204,13 +204,6 @@ The full, current endpoint list lives in [`socore-backend/README.md`](socore-bac
 
 The live demo runs on a single GCP VM: Wazuh (manager + dashboard, Docker), MISP, Cortex, and Shuffle each in their own containers, the FastAPI backend as a systemd service bound to a Docker-bridge-only address (reachable from Nginx and the Wazuh container, not from outside the VM), and the built React app served as static files by Nginx with a Let's Encrypt certificate. There's no one-command deploy script yet — see the individual READMEs above for how each piece is wired together if you're standing up your own instance.
 
-## Team
+## Author
 
-The project is built by a 4-person team:
-
-| Role | Responsibility |
-|---|---|
-| **SIEM / Infrastructure** | Wazuh manager, agents, the GCP VM, deployment |
-| **Backend / AI** | The FastAPI backend, correlation logic, Groq integration (explanations, chat, shift summary) |
-| **Threat Intel / SOAR** | MISP, Cortex, and Shuffle integrations and workflows |
-| **Detection / Docs** | Wazuh detection rules, documentation, test scenarios |
+SOCore was designed and built solo by [Tunar Eyyublu](https://github.com/wondersofcode) — the SIEM/infrastructure setup (Wazuh manager and agents, the GCP VM, deployment), the backend and correlation/AI logic, the threat intel and SOAR integrations (MISP, Cortex, Shuffle), and the detection rules, dashboard, and documentation.
