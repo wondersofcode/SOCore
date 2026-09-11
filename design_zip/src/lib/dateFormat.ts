@@ -40,6 +40,12 @@ export function formatTimeOfDay(hms: string, referenceTimestamp: string, timezon
   return formatTime(`${datePart} ${hms}`, timezone)
 }
 
+export function formatISODate(timestamp: string, timezone: string = DEFAULT_TIMEZONE): string {
+  const date = toDate(timestamp)
+  if (!date) return ''
+  return new Intl.DateTimeFormat('en-CA', { timeZone: timezone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(date)
+}
+
 export function formatShortDate(timestamp: string, timezone: string = DEFAULT_TIMEZONE): string {
   const date = toDate(timestamp)
   if (!date) return ''

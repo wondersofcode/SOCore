@@ -1,6 +1,7 @@
 import { useNavigate } from 'react-router-dom'
 import { useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
+import { formatTime } from '../lib/dateFormat'
 
 const MANROPE = { fontFamily: "'Manrope', system-ui, sans-serif" }
 
@@ -150,7 +151,7 @@ function ReasonCard() {
     <div className="border rounded-lg p-4" style={{ borderColor: BORDER_BRIGHT, background: SURFACE }}>
       <div className="flex items-center gap-4 mb-3.5">
         <RiskGauge score={62} size={52} color={SEV_MEDIUM} />
-        <div className="font-mono text-[11.5px]" style={{ color: TEXT_DIM }}>correlation +24 · gemini weight +18</div>
+        <div className="font-mono text-[11.5px]" style={{ color: TEXT_DIM }}>correlation +24 · groq weight +18</div>
       </div>
       <div className="rounded-lg p-3" style={{ background: `${VIOLET}12`, border: `1px solid ${VIOLET}55` }}>
         <div className="text-[11px] font-semibold mb-1" style={{ color: VIOLET }}>Why this was flagged</div>
@@ -200,7 +201,7 @@ function PlaybookCard() {
 
 const PIPELINE = [
   { n: '01', tag: 'Detect — Wazuh', h: 'Unified visibility from the first signal.', p: 'A live Wazuh agent watches the host and raises the alert the moment a Sysmon rule matches — nothing waits in a queue unseen.', visual: <WazuhLogCard /> },
-  { n: '02', tag: 'Reason — Backend + Gemini', h: 'Investigation, without losing context.', p: 'Every alert is correlated, risk-scored, and sent to Gemini for a plain-language explanation — shown right on the alert, not buried in a runbook.', visual: <ReasonCard /> },
+  { n: '02', tag: 'Reason — Backend + Groq', h: 'Investigation, without losing context.', p: 'Every alert is correlated, risk-scored, and sent to Groq for a plain-language explanation — shown right on the alert, not buried in a runbook.', visual: <ReasonCard /> },
   { n: '03', tag: 'Enrich — MISP / Cortex', h: 'Threat intelligence, connected in.', p: 'Indicators are checked against MISP threat intel and run through Cortex analyzers, returning a verdict before a human opens the alert.', visual: <IntelCard /> },
   { n: '04', tag: 'Respond — Shuffle', h: 'Automated response, never unsupervised.', p: 'Matched playbooks queue the response action — isolate a host, block an indicator — and wait for an analyst to approve before anything executes.', visual: <PlaybookCard /> },
 ]
@@ -217,11 +218,19 @@ function IntegChip({ children }: { children: ReactNode }) {
 export default function Landing() {
   const navigate = useNavigate()
   const [scrolled, setScrolled] = useState(false)
+  // Ticking UTC clock for the hero console mockup — this is a static
+  // marketing preview, not real telemetry, but the clock should still move.
+  const [clock, setClock] = useState(() => new Date())
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 8)
     window.addEventListener('scroll', onScroll, { passive: true })
     return () => window.removeEventListener('scroll', onScroll)
+  }, [])
+
+  useEffect(() => {
+    const timer = setInterval(() => setClock(new Date()), 1000)
+    return () => clearInterval(timer)
   }, [])
 
   return (
@@ -318,7 +327,7 @@ export default function Landing() {
                 </a>
               </div>
               <div className="hero-in flex items-center gap-2.5 flex-wrap text-[12.5px]" style={{ color: TEXT_FAINT, animationDelay: '.46s' }}>
-                {['Open source', 'Wazuh', 'MISP', 'Cortex', 'Shuffle', 'Gemini'].map((t, i) => (
+                {['Open source', 'Wazuh', 'MISP', 'Cortex', 'Shuffle', 'Groq'].map((t, i) => (
                   <span key={t} className="flex items-center gap-2.5">
                     {i > 0 && <span className="w-[3px] h-[3px] rounded-full" style={{ background: TEXT_FAINT }} />}
                     {t}
@@ -337,7 +346,7 @@ export default function Landing() {
                     </span>
                     <span className="font-mono text-[11px]" style={{ color: TEXT_DIM }}>SOC-01 · production</span>
                   </div>
-                  <span className="font-mono text-[11px]" style={{ color: TEXT_FAINT }}>04:32:17 UTC</span>
+                  <span className="font-mono text-[11px]" style={{ color: TEXT_FAINT }}>{formatTime(clock.toISOString(), 'UTC')} UTC</span>
                 </div>
                 <div className="p-[18px]">
                   <div className="flex items-center gap-4 pb-4 mb-4 border-b" style={{ borderColor: BORDER }}>
@@ -413,7 +422,7 @@ export default function Landing() {
                 <svg width="16" height="24" viewBox="0 0 16 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M8 2v18M2 14l6 6 6-6" /></svg>
               </div>
               <div className="flex items-center justify-center flex-wrap gap-0 pt-2">
-                {['Wazuh', 'Backend + Gemini', 'MISP / Cortex', 'Shuffle', 'Dashboard'].map((c, i) => (
+                {['Wazuh', 'Backend + Groq', 'MISP / Cortex', 'Shuffle', 'Dashboard'].map((c, i) => (
                   <span key={c} className="flex items-center">
                     {i > 0 && <span className="w-7 h-px hidden sm:block" style={{ background: `${ACCENT}55` }} />}
                     <span
@@ -473,7 +482,7 @@ export default function Landing() {
             <Reveal>
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3.5">
                 <IntegChip><img src="/logos/wazuh.svg" alt="Wazuh" className="max-h-[26px] w-auto" /></IntegChip>
-                <IntegChip><img src="/logos/gemini.svg" alt="Gemini" className="max-h-[26px] w-auto" /></IntegChip>
+                <IntegChip><img src="/logos/groq.svg" alt="Groq" className="max-h-[26px] w-auto" /></IntegChip>
                 <IntegChip><img src="/logos/misp.png" alt="MISP" className="max-h-[26px] w-auto" /></IntegChip>
                 <IntegChip><img src="/logos/cortex.png" alt="Cortex" className="max-h-[26px] w-auto" /></IntegChip>
                 <IntegChip><img src="/logos/shuffle.png" alt="Shuffle" className="max-h-[26px] w-auto" /></IntegChip>

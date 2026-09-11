@@ -255,7 +255,7 @@ export default function Settings() {
   const { role } = useAuth()
 
   // Every row is static except the AI explanation service, whose connection
-  // state reflects whether the backend actually has a live Gemini key.
+  // state reflects whether the backend actually has a live Groq key.
   const rows = integrations.map(i =>
     i.name === 'AI explanation service' ? { ...i, connected: aiLive } : i,
   )

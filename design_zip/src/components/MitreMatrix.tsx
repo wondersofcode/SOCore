@@ -1,5 +1,7 @@
 import { useState } from 'react'
 import { mitreMatrix } from '../data'
+import { useAuth } from '../lib/AuthContext'
+import { formatISODate } from '../lib/dateFormat'
 
 type TechStatus = 'detected' | 'partial' | 'none' | 'missed'
 
@@ -20,6 +22,8 @@ interface TooltipState {
 }
 
 export default function MitreMatrix() {
+  const { profile } = useAuth()
+  const today = formatISODate(new Date().toISOString(), profile?.timezone)
   const [tooltip, setTooltip] = useState<TooltipState | null>(null)
 
   const counts = mitreMatrix.flatMap(t => t.techniques).reduce(
@@ -33,7 +37,7 @@ export default function MitreMatrix() {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-sm font-semibold text-[var(--color-text-primary)]">MITRE ATT&CK® Coverage Matrix</h2>
-          <p className="text-xs text-[var(--color-info)] mt-0.5 font-mono">Enterprise v14 · Last updated 2024-01-17</p>
+          <p className="text-xs text-[var(--color-info)] mt-0.5 font-mono">Enterprise v14 · Last updated {today}</p>
         </div>
         <div className="flex items-center gap-4">
           {(Object.entries(statusConfig) as [TechStatus, typeof statusConfig[TechStatus]][]).map(([status, cfg]) => (
@@ -123,7 +127,7 @@ export default function MitreMatrix() {
               {statusConfig[tooltip.status].label}
             </span>
           </div>
-          <div className="text-[10px] font-mono text-[var(--color-text-muted)] mt-1">Last test: 2024-01-17</div>
+          <div className="text-[10px] font-mono text-[var(--color-text-muted)] mt-1">Last test: {today}</div>
         </div>
       )}
     </div>
