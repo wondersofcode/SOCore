@@ -16,67 +16,75 @@ function prettyRaw(raw: string): string {
   }
 }
 
-function EventDrawer({ event, onClose }: { event: WazuhRawEvent; onClose: () => void }) {
-  const { profile } = useAuth()
-  const timezone = profile?.timezone
+function levelColor(lvl: number): string {
+  return lvl >= 12 ? '#fb4a63' : lvl >= 9 ? '#ff9d4d' : lvl >= 6 ? '#f2c94c' : 'var(--color-info)'
+}
+
+// One row, expanding inline into its raw JSON — matches the SOCore Command
+// Center artifact's Events screen (no side drawer).
+function EventRow({ event, open, onToggle, timezone }: { event: WazuhRawEvent; open: boolean; onToggle: () => void; timezone?: string }) {
+  const color = levelColor(event.ruleLevel)
   return (
-    <div className="fixed inset-0 z-50 flex" onClick={onClose}>
-      <div className="flex-1 bg-black/60 backdrop-blur-sm" />
+    <div className="border-b border-[var(--color-border)] last:border-0">
       <div
-        className="w-full max-w-2xl bg-[var(--color-background)] border-l border-[var(--color-border)] overflow-y-auto flex flex-col"
-        onClick={e => e.stopPropagation()}
+        onClick={onToggle}
+        className="flex items-center gap-3 px-4 py-2.5 cursor-pointer hover:bg-[var(--color-surface-2)] transition-colors"
       >
-        <div className="sticky top-0 bg-[var(--color-background)] border-b border-[var(--color-border)] px-6 py-4 flex items-start justify-between z-10">
-          <div className="flex flex-col gap-2">
-            <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-[var(--color-border)] text-[var(--color-text-secondary)] w-fit">
-              {event.alertId ? 'Converted to alert' : 'Not converted to an alert'}
-            </span>
-            <div className="text-[var(--color-text-primary)] font-semibold text-lg leading-tight">
-              {event.ruleDescription || 'Wazuh event'}
-            </div>
-            <div className="flex items-center gap-3 text-xs flex-wrap">
-              <span className="font-mono text-[#9c8bfb]">rule {event.ruleId || '—'}</span>
-              <span className="text-[var(--color-text-muted)]">·</span>
-              <span className="font-mono text-[var(--color-text-secondary)]">level {event.ruleLevel}</span>
-              <span className="text-[var(--color-text-muted)]">·</span>
-              <span className="font-mono text-[var(--color-text-secondary)]">{formatDateTime(event.timestamp, timezone)}</span>
-            </div>
-          </div>
-          <button onClick={onClose} className="text-[var(--color-info)] hover:text-[var(--color-text-primary)] transition-colors p-1">
-            <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
-              <path d="M4 4l10 10M14 4L4 14" />
-            </svg>
-          </button>
-        </div>
-
-        <div className="flex-1 overflow-y-auto p-6 space-y-5">
-          <div className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg p-4">
-            <div className="grid grid-cols-2 gap-4 text-xs">
-              <div><div className="text-[var(--color-info)] mb-1 uppercase tracking-widest text-[10px]">Event ID</div><div className="font-mono text-[var(--color-text-primary)]">{event.id}</div></div>
-              <div><div className="text-[var(--color-info)] mb-1 uppercase tracking-widest text-[10px]">Source IP</div><div className="font-mono text-[var(--color-text-primary)]">{event.sourceIP}</div></div>
-              <div><div className="text-[var(--color-info)] mb-1 uppercase tracking-widest text-[10px]">Agent</div><div className="font-mono text-[var(--color-text-primary)]">{event.agentName || '—'} {event.agentId && <span className="text-[var(--color-text-muted)]">({event.agentId})</span>}</div></div>
-              <div><div className="text-[var(--color-info)] mb-1 uppercase tracking-widest text-[10px]">Alert</div><div className="font-mono text-[var(--color-text-primary)]">{event.alertId || '—'}</div></div>
-            </div>
-          </div>
-
-          <div>
-            <div className="text-[10px] uppercase tracking-widest text-[var(--color-info)] font-semibold mb-3">Raw Event</div>
-            <div className="bg-[var(--color-background)] border border-[var(--color-border)] rounded-lg overflow-hidden">
-              <div className="flex items-center gap-2 px-4 py-2 bg-[var(--color-surface)] border-b border-[var(--color-border)]">
-                <div className="flex gap-1.5">
-                  <div className="w-2.5 h-2.5 rounded-full bg-[#fb4a63] opacity-60" />
-                  <div className="w-2.5 h-2.5 rounded-full bg-[#f2c94c] opacity-60" />
-                  <div className="w-2.5 h-2.5 rounded-full bg-[#30d18a] opacity-60" />
-                </div>
-                <span className="text-[10px] font-mono text-[var(--color-text-muted)] ml-2">{event.id}.json</span>
-              </div>
-              <pre className="p-4 text-[11px] font-mono text-[var(--color-text-secondary)] overflow-x-auto leading-relaxed whitespace-pre-wrap">
-                <code>{prettyRaw(event.raw)}</code>
-              </pre>
-            </div>
-          </div>
-        </div>
+        <svg
+          width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"
+          className="shrink-0 text-[var(--color-text-muted)] transition-transform"
+          style={{ transform: open ? 'rotate(90deg)' : 'none' }}
+        >
+          <path d="M5 3l4 4-4 4" />
+        </svg>
+        <span
+          className="shrink-0 w-6 h-5 rounded flex items-center justify-center text-[10px] font-bold font-mono"
+          style={{ background: `${color}30`, color }}
+        >
+          {event.ruleLevel}
+        </span>
+        <span className="flex-1 min-w-0 text-xs font-semibold text-[var(--color-text-primary)] truncate">
+          {event.ruleDescription || 'Wazuh event'}
+        </span>
+        <span className="hidden md:flex items-center gap-3.5 shrink-0 text-[10.5px] font-mono text-[var(--color-text-muted)]">
+          <span>{event.sourceIP}</span>
+          <span>rule {event.ruleId || '—'}</span>
+          <span>{event.agentName || '—'}</span>
+          <span>{formatDateTime(event.timestamp, timezone)}</span>
+        </span>
       </div>
+
+      {open && (
+        <div className="px-4 pb-4 pl-[42px]">
+          <div className="flex flex-wrap gap-x-5 gap-y-1 mb-3 text-[10.5px] font-mono text-[var(--color-text-muted)] md:hidden">
+            <span>{event.sourceIP}</span>
+            <span>rule {event.ruleId || '—'}</span>
+            <span>{event.agentName || '—'}</span>
+            <span>{formatDateTime(event.timestamp, timezone)}</span>
+          </div>
+          <div className="flex flex-wrap gap-x-5 gap-y-1 mb-3 text-[10.5px] font-mono text-[var(--color-text-muted)]">
+            <span>Event <span className="text-[var(--color-text-secondary)]">{event.id}</span></span>
+            <span>Agent ID <span className="text-[var(--color-text-secondary)]">{event.agentId || '—'}</span></span>
+            <span>
+              Alert{' '}
+              {event.alertId
+                ? <span className="text-[#4f8cff]">{event.alertId}</span>
+                : <span className="text-[var(--color-text-secondary)]">not converted</span>}
+            </span>
+          </div>
+          <div className="bg-[var(--color-background)] border border-[var(--color-border)] rounded-lg overflow-hidden">
+            <div className="flex items-center gap-1.5 px-3 py-2 bg-[var(--color-surface)] border-b border-[var(--color-border)]">
+              <span className="w-2 h-2 rounded-full bg-[#fb4a63] opacity-60" />
+              <span className="w-2 h-2 rounded-full bg-[#f2c94c] opacity-60" />
+              <span className="w-2 h-2 rounded-full bg-[#30d18a] opacity-60" />
+              <span className="text-[10px] font-mono text-[var(--color-text-muted)] ml-1.5">{event.id}.json</span>
+            </div>
+            <pre className="p-3 text-[10.8px] font-mono text-[var(--color-text-secondary)] overflow-x-auto leading-relaxed whitespace-pre-wrap max-h-[280px] overflow-y-auto">
+              {prettyRaw(event.raw)}
+            </pre>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -94,7 +102,16 @@ export default function Events({
   const [page, setPage] = useState(0)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(false)
-  const [selected, setSelected] = useState<WazuhRawEvent | null>(null)
+  const [openIds, setOpenIds] = useState<Set<string>>(new Set())
+
+  const toggle = (id: string) => {
+    setOpenIds(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
 
   const load = async (p: number) => {
     setLoading(true)
@@ -117,7 +134,7 @@ export default function Events({
   useEffect(() => {
     if (!preselectId) return
     api.event(preselectId)
-      .then(ev => setSelected(ev))
+      .then(ev => { setEvents(prev => (prev.some(e => e.id === ev.id) ? prev : [ev, ...prev])); setOpenIds(prev => new Set(prev).add(ev.id)) })
       .catch(() => {})
       .finally(() => onConsumedPreselect?.())
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -150,40 +167,10 @@ export default function Events({
         )}
 
         {!loading && !error && events.length > 0 && (
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs">
-              <thead>
-                <tr className="border-b border-[var(--color-border)]">
-                  {['Timestamp', 'Source IP', 'Rule', 'Agent', 'Alert'].map(h => (
-                    <th key={h} className="px-4 py-2.5 text-left text-[10px] uppercase tracking-widest text-[var(--color-info)] font-semibold whitespace-nowrap">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {events.map(ev => (
-                  <tr
-                    key={ev.id}
-                    onClick={() => setSelected(ev)}
-                    className="border-b border-[var(--color-border)] last:border-b-0 hover:bg-[var(--color-surface-2)] cursor-pointer group transition-colors"
-                  >
-                    <td className="px-4 py-2.5 font-mono text-[var(--color-text-secondary)] whitespace-nowrap">{formatDateTime(ev.timestamp, timezone)}</td>
-                    <td className="px-4 py-2.5 font-mono text-[var(--color-text-primary)] whitespace-nowrap">{ev.sourceIP}</td>
-                    <td className="px-4 py-2.5">
-                      <span className="font-mono text-[#9c8bfb]">{ev.ruleId || '—'}</span>
-                      <div className="text-[10px] text-[var(--color-info)] truncate max-w-[280px]">{ev.ruleDescription}</div>
-                    </td>
-                    <td className="px-4 py-2.5 text-[var(--color-text-secondary)] whitespace-nowrap">{ev.agentName || '—'}</td>
-                    <td className="px-4 py-2.5 font-mono whitespace-nowrap">
-                      {ev.alertId ? (
-                        <span className="text-[#4f8cff] group-hover:underline">{ev.alertId}</span>
-                      ) : (
-                        <span className="text-[var(--color-text-muted)]">not converted</span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div>
+            {events.map(ev => (
+              <EventRow key={ev.id} event={ev} open={openIds.has(ev.id)} onToggle={() => toggle(ev.id)} timezone={timezone} />
+            ))}
           </div>
         )}
 
@@ -207,8 +194,6 @@ export default function Events({
           </div>
         </div>
       </Panel>
-
-      {selected && <EventDrawer event={selected} onClose={() => setSelected(null)} />}
     </div>
   )
 }

@@ -1,12 +1,18 @@
-// Backend timestamps come in two shapes:
+// Backend timestamps come in three shapes:
 //  - naive UTC strings like "2026-09-11 10:14:40" (no timezone marker at all)
-//  - real ISO 8601 strings with an offset, e.g. "2026-09-11T10:14:40.123456+00:00"
-// Both are normalized to a real UTC instant here, then rendered in the
+//  - ISO 8601 with a colon'd offset, e.g. "2026-09-11T10:14:40.123456+00:00"
+//  - Wazuh's own native ISO format, with an offset but NO colon, e.g.
+//    "2026-09-11T17:52:09.021+0000" — real alerts forwarded straight from
+//    the manager carry this shape (see correlation.py). `new Date()` alone
+//    mishandles this in some engines, and a naive "does it already have a
+//    zone" check that only looks for a colon'd offset misses it entirely,
+//    appending a redundant Z and producing an Invalid Date.
+// All three are normalized to a real UTC instant here, then rendered in the
 // viewer's chosen IANA timezone via Intl.DateTimeFormat.
 function toDate(timestamp: string): Date | null {
   if (!timestamp) return null
   const iso = timestamp.includes('T') ? timestamp : timestamp.replace(' ', 'T')
-  const hasZone = /[zZ]|[+-]\d\d:\d\d$/.test(iso)
+  const hasZone = /[zZ]$|[+-]\d\d:?\d\d$/.test(iso)
   const date = new Date(hasZone ? iso : `${iso}Z`)
   return Number.isNaN(date.getTime()) ? null : date
 }
