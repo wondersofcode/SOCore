@@ -250,3 +250,27 @@ def now_hms() -> str:
 
 def now_full() -> str:
     return datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+
+
+# ── AI assistant chat ────────────────────────────────────────────────────────
+class ChatMessage(BaseModel):
+    role: str = Field(description="'user' or 'assistant'")
+    content: str
+
+
+class AssistantChatRequest(BaseModel):
+    message: str
+    history: list[ChatMessage] = Field(default_factory=list)
+
+
+class AssistantChatResponse(BaseModel):
+    reply: str
+
+
+# ── Shift summary report ─────────────────────────────────────────────────────
+class ShiftSummaryResponse(BaseModel):
+    summary: str
+    windowHours: int
+    alertCount: int
+    generatedAt: str
+    cached: bool

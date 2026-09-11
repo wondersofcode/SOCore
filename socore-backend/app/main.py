@@ -17,16 +17,19 @@ import logging
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
-from . import actions, ai_explainer, auth, db, enrichment
+from . import actions, ai_explainer, assistant, auth, db, enrichment, shift_summary
 from .correlation import correlate
 from .models import (
     AddNoteRequest,
     Alert,
     ApprovalDecision,
+    AssistantChatRequest,
+    AssistantChatResponse,
     Case,
     CreateCaseRequest,
     Event,
     Profile,
+    ShiftSummaryResponse,
     UpdateCaseRequest,
     UpdateProfileRequest,
     UpdateRoleRequest,
@@ -387,3 +390,45 @@ def toggle_case_task(case_id: str, task_id: str) -> Case:
     if case is None:
         raise HTTPException(status_code=404, detail="Case not found")
     return case
+
+
+# ── AI assistant chat ────────────────────────────────────────────────────────
+@app.post("/api/assistant/chat", response_model=AssistantChatResponse)
+def assistant_chat(
+    req: AssistantChatRequest,
+    current_user: auth.CurrentUser = Depends(auth.get_current_user),
+) -> AssistantChatResponse:
+    """Answers a free-form question about the current SOC state, grounded in
+    the real alerts/cases/pending data (never invented) via Groq."""
+    alerts = store.all()
+    reply = assistant.chat(
+        message=req.message,
+        history=req.history,
+        alerts=alerts,
+        cases=store.all_cases(),
+        pending=[a for a in alerts if a.approvalStatus.value == "Pending"],
+    )
+    return AssistantChatResponse(reply=reply)
+
+
+# ── Shift summary report ─────────────────────────────────────────────────────
+@app.get("/api/reports/shift-summary", response_model=ShiftSummaryResponse)
+def reports_shift_summary(
+    hours: int = 8,
+    refresh: bool = False,
+    current_user: auth.CurrentUser = Depends(auth.get_current_user),
+) -> ShiftSummaryResponse:
+    """3-4 sentence AI recap of the last `hours` (8/12/24) of alerts and
+    cases, cached for 5 minutes per window so repeat page loads don't
+    re-call Groq. Pass refresh=true to force a fresh call."""
+    if hours not in (8, 12, 24):
+        raise HTTPException(status_code=400, detail="hours must be 8, 12 or 24")
+    alerts = store.all()
+    summary, cached, alert_count = shift_summary.get_summary(alerts, store.all_cases(), hours, force_refresh=refresh)
+    return ShiftSummaryResponse(
+        summary=summary,
+        windowHours=hours,
+        alertCount=alert_count,
+        generatedAt=now_full(),
+        cached=cached,
+    )

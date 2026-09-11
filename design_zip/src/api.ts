@@ -20,13 +20,15 @@ async function authHeaders(): Promise<Record<string, string>> {
   return token ? { Authorization: `Bearer ${token}` } : {}
 }
 
-async function req<T>(path: string, init?: RequestInit): Promise<T> {
+async function req<T>(path: string, init?: RequestInit, timeoutMs = 4000): Promise<T> {
   const auth = await authHeaders()
   const res = await fetch(`${BASE}${path}`, {
     ...init,
     headers: { 'Content-Type': 'application/json', ...auth, ...(init?.headers ?? {}) },
-    // Fail fast so the UI doesn't hang when the backend is down.
-    signal: AbortSignal.timeout(4000),
+    // Fail fast so the UI doesn't hang when the backend is down. AI calls
+    // (assistant chat, shift summary) get a longer budget since a Groq round
+    // trip can take a few seconds.
+    signal: AbortSignal.timeout(timeoutMs),
   })
   if (!res.ok) throw new Error(`${path} -> ${res.status}`)
   return res.json() as Promise<T>
@@ -37,6 +39,19 @@ export interface Health {
   aiLive: boolean
   alerts: number
   pending: number
+}
+
+export interface ChatMessage {
+  role: 'user' | 'assistant'
+  content: string
+}
+
+export interface ShiftSummary {
+  summary: string
+  windowHours: number
+  alertCount: number
+  generatedAt: string
+  cached: boolean
 }
 
 export const api = {
@@ -84,4 +99,16 @@ export const api = {
     }),
   toggleCaseTask: (id: string, taskId: string) =>
     req<Case>(`/api/cases/${id}/tasks/${taskId}/toggle`, { method: 'POST' }),
+
+  // AI assistant chat — grounded in real alert/case/approval data server-side.
+  chatWithAssistant: (message: string, history: ChatMessage[]) =>
+    req<{ reply: string }>(
+      '/api/assistant/chat',
+      { method: 'POST', body: JSON.stringify({ message, history }) },
+      20000,
+    ),
+
+  // Shift summary report (Reports page) — server caches per window for 5 minutes.
+  shiftSummary: (hours: 8 | 12 | 24, refresh = false) =>
+    req<ShiftSummary>(`/api/reports/shift-summary?hours=${hours}${refresh ? '&refresh=true' : ''}`, undefined, 20000),
 }

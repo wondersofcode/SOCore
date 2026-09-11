@@ -4,6 +4,7 @@ import {
   CartesianGrid, Tooltip, ResponsiveContainer,
 } from 'recharts'
 import { StatCard, SeverityBadge, AlertStatusPill, Panel, PanelHeader, RiskBadge } from './Shared'
+import AssistantWidget from './AssistantWidget'
 import { riskTrendData, attackTypeData } from '../data'
 import type { WazuhRawEvent } from '../data'
 import { useStore } from '../store'
@@ -190,6 +191,8 @@ export default function Dashboard({ onSelectAlert, onOpenQueue, onOpenApprovals 
 
   return (
     <div className="space-y-4">
+      <AssistantWidget />
+
       {/* KPI Row */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <StatCard
