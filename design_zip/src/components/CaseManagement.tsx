@@ -6,6 +6,9 @@ import { formatTime } from '../lib/dateFormat'
 import type { Case, CaseStatus } from '../data'
 
 const STATUS_FLOW: CaseStatus[] = ['Open', 'Investigating', 'Contained', 'Closed']
+const STATUS_COLOR: Record<CaseStatus, string> = {
+  Open: '#4f8cff', Investigating: '#ff9d4d', Contained: '#9c8bfb', Closed: '#30d18a',
+}
 
 function CaseDetail({ caseItem, onClose }: { caseItem: Case; onClose: () => void }) {
   const { alerts, currentUser, updateCaseStatus, addCaseNote, toggleCaseTask, live } = useStore()
@@ -42,7 +45,7 @@ function CaseDetail({ caseItem, onClose }: { caseItem: Case; onClose: () => void
             </div>
             <div className="text-[var(--color-text-primary)] font-semibold text-base">{caseItem.title}</div>
             <div className="flex items-center gap-3 text-xs font-mono flex-wrap">
-              <span className="text-[#00d4ff]">{caseItem.id}</span>
+              <span className="text-[#4f8cff]">{caseItem.id}</span>
               <span className="text-[var(--color-text-muted)]">·</span>
               <span className="text-[var(--color-text-secondary)]">{caseItem.assignedTo}</span>
               <span className="text-[var(--color-text-muted)]">·</span>
@@ -68,21 +71,21 @@ function CaseDetail({ caseItem, onClose }: { caseItem: Case; onClose: () => void
                 key={s}
                 onClick={() => updateCaseStatus(caseItem.id, s)}
                 className="flex-1 text-[10px] font-semibold uppercase tracking-wider py-1.5 rounded transition-colors"
-                style={caseItem.status === s ? { background: '#00d4ff20', color: '#00d4ff' } : { color: 'var(--color-info)' }}
+                style={caseItem.status === s ? { background: '#4f8cff20', color: '#4f8cff' } : { color: 'var(--color-info)' }}
               >
                 {s}
               </button>
             ))}
           </div>
           {!live && (
-            <div className="text-[10px] text-[#f97316] -mt-2">
+            <div className="text-[10px] text-[#ff9d4d] -mt-2">
               Backend not connected — status changes here won't be saved.
             </div>
           )}
 
           {caseItem.summary && (
-            <div className="rounded-lg border border-[#a855f730] bg-[#a855f708] p-3.5">
-              <div className="text-[11px] font-semibold text-[#a855f7] mb-1.5">Opened from</div>
+            <div className="rounded-lg border border-[#9c8bfb30] bg-[#9c8bfb08] p-3.5">
+              <div className="text-[11px] font-semibold text-[#9c8bfb] mb-1.5">Opened from</div>
               <p className="text-xs text-[var(--color-text-secondary)] leading-relaxed">{caseItem.summary}</p>
             </div>
           )}
@@ -102,11 +105,11 @@ function CaseDetail({ caseItem, onClose }: { caseItem: Case; onClose: () => void
                   >
                     <span
                       className="w-4 h-4 rounded border flex items-center justify-center shrink-0"
-                      style={{ borderColor: t.done ? '#22c55e' : 'var(--color-border-bright)', background: t.done ? '#22c55e20' : 'transparent' }}
+                      style={{ borderColor: t.done ? '#30d18a' : 'var(--color-border-bright)', background: t.done ? '#30d18a20' : 'transparent' }}
                     >
                       {t.done && (
                         <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
-                          <path d="M2 5l2 2 4-4" stroke="#22c55e" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+                          <path d="M2 5l2 2 4-4" stroke="#30d18a" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
                         </svg>
                       )}
                     </span>
@@ -127,7 +130,7 @@ function CaseDetail({ caseItem, onClose }: { caseItem: Case; onClose: () => void
                   <SeverityDot severity={a.severity} />
                   <span className="font-mono text-[10px] text-[var(--color-text-muted)] shrink-0">{a.id}</span>
                   <span className="text-xs text-[var(--color-text-primary)] flex-1 truncate">{a.attackType}</span>
-                  <span className="font-mono text-[10px] text-[#a855f7] shrink-0">{a.mitreId}</span>
+                  <span className="font-mono text-[10px] text-[#9c8bfb] shrink-0">{a.mitreId}</span>
                   <span className="font-mono text-[10px] text-[var(--color-info)] shrink-0">{formatTime(a.timestamp, timezone)}</span>
                 </div>
               ))}
@@ -141,7 +144,7 @@ function CaseDetail({ caseItem, onClose }: { caseItem: Case; onClose: () => void
               {notes.map((n, i) => (
                 <div key={i} className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg p-3">
                   <div className="flex items-center gap-2 mb-2">
-                    <span className="text-[10px] font-semibold text-[#00d4ff]">{n.author}</span>
+                    <span className="text-[10px] font-semibold text-[#4f8cff]">{n.author}</span>
                     <span className="text-[var(--color-text-muted)]">·</span>
                     <span className="text-[10px] font-mono text-[var(--color-text-muted)]">{n.at}</span>
                   </div>
@@ -157,11 +160,11 @@ function CaseDetail({ caseItem, onClose }: { caseItem: Case; onClose: () => void
               onChange={e => setNote(e.target.value)}
               rows={3}
               placeholder="Add analyst note..."
-              className="w-full bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg px-3 py-2.5 text-xs font-mono text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] focus:outline-none focus:border-[#00d4ff] transition-colors resize-none"
+              className="w-full bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg px-3 py-2.5 text-xs font-mono text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] focus:outline-none focus:border-[#4f8cff] transition-colors resize-none"
             />
             <button
               onClick={addNote}
-              className="mt-2 px-4 py-2 rounded-lg bg-[#00d4ff15] border border-[#00d4ff40] text-[#00d4ff] text-xs font-semibold uppercase tracking-wider hover:bg-[#00d4ff25] transition-colors"
+              className="mt-2 px-4 py-2 rounded-lg bg-[#4f8cff15] border border-[#4f8cff40] text-[#4f8cff] text-xs font-semibold uppercase tracking-wider hover:bg-[#4f8cff25] transition-colors"
             >
               Add Note
             </button>
@@ -195,7 +198,7 @@ function NewCaseModal({ onClose }: { onClose: () => void }) {
         <div className="text-sm font-semibold text-[var(--color-text-primary)] mb-4">Escalate an alert to a case</div>
 
         {!live && (
-          <div className="text-[11px] text-[#f97316] bg-[#f9731610] border border-[#f9731630] rounded-lg px-3 py-2 mb-3">
+          <div className="text-[11px] text-[#ff9d4d] bg-[#ff9d4d10] border border-[#ff9d4d30] rounded-lg px-3 py-2 mb-3">
             Backend not connected. Connect it to create real cases.
           </div>
         )}
@@ -204,7 +207,7 @@ function NewCaseModal({ onClose }: { onClose: () => void }) {
         <select
           value={alertId}
           onChange={e => setAlertId(e.target.value)}
-          className="w-full bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg px-3 py-2 text-xs text-[var(--color-text-primary)] mb-3 focus:outline-none focus:border-[#00d4ff40]"
+          className="w-full bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg px-3 py-2 text-xs text-[var(--color-text-primary)] mb-3 focus:outline-none focus:border-[#4f8cff40]"
         >
           <option value="">Select an alert…</option>
           {eligible.map(a => (
@@ -217,7 +220,7 @@ function NewCaseModal({ onClose }: { onClose: () => void }) {
           value={title}
           onChange={e => setTitle(e.target.value)}
           placeholder="Defaults to the alert's attack type and source"
-          className="w-full bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg px-3 py-2 text-xs text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] mb-4 focus:outline-none focus:border-[#00d4ff40]"
+          className="w-full bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg px-3 py-2 text-xs text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] mb-4 focus:outline-none focus:border-[#4f8cff40]"
         />
 
         <div className="flex items-center justify-end gap-2">
@@ -225,7 +228,7 @@ function NewCaseModal({ onClose }: { onClose: () => void }) {
           <button
             onClick={submit}
             disabled={!alertId || !live || busy}
-            className="px-4 py-1.5 rounded-lg bg-[#00d4ff15] border border-[#00d4ff40] text-[#00d4ff] text-xs font-semibold disabled:opacity-40 disabled:cursor-not-allowed hover:bg-[#00d4ff25] transition-colors"
+            className="px-4 py-1.5 rounded-lg bg-[#4f8cff15] border border-[#4f8cff40] text-[#4f8cff] text-xs font-semibold disabled:opacity-40 disabled:cursor-not-allowed hover:bg-[#4f8cff25] transition-colors"
           >
             {busy ? 'Creating…' : 'Create case'}
           </button>
@@ -254,7 +257,7 @@ export default function CaseManagement() {
               onClick={() => setStatusFilter(s)}
               className={`px-3 py-1.5 rounded text-[10px] font-semibold uppercase tracking-widest transition-colors border ${
                 statusFilter === s
-                  ? 'bg-[#00d4ff15] border-[#00d4ff40] text-[#00d4ff]'
+                  ? 'bg-[#4f8cff15] border-[#4f8cff40] text-[#4f8cff]'
                   : 'border-transparent text-[var(--color-info)] hover:text-[var(--color-text-secondary)]'
               }`}
             >
@@ -264,7 +267,7 @@ export default function CaseManagement() {
         </div>
         <button
           onClick={() => setShowNewCase(true)}
-          className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[#00d4ff15] border border-[#00d4ff40] text-[#00d4ff] text-[10px] font-semibold uppercase tracking-wider hover:bg-[#00d4ff25] transition-colors"
+          className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[#4f8cff15] border border-[#4f8cff40] text-[#4f8cff] text-[10px] font-semibold uppercase tracking-wider hover:bg-[#4f8cff25] transition-colors"
         >
           <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
             <path d="M6 1v10M1 6h10" />
@@ -273,39 +276,56 @@ export default function CaseManagement() {
         </button>
       </div>
 
-      <div className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg overflow-hidden">
-        <table className="w-full text-xs">
-          <thead>
-            <tr className="border-b border-[var(--color-border)]">
-              {['Case ID', 'Title', 'Severity', 'Status', 'Assigned To', 'Alerts', 'Created'].map(h => (
-                <th key={h} className="px-4 py-3 text-left text-[10px] uppercase tracking-widest text-[var(--color-info)] font-semibold whitespace-nowrap">{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.map(c => (
-              <tr
-                key={c.id}
-                onClick={() => setSelectedCase(c)}
-                className="border-b border-[var(--color-border)] last:border-b-0 hover:bg-[var(--color-surface-2)] cursor-pointer group transition-colors"
-              >
-                <td className="px-4 py-3 font-mono text-[#00d4ff] group-hover:text-[#33ddff] transition-colors">{c.id}</td>
-                <td className="px-4 py-3 text-[var(--color-text-primary)] max-w-[240px] truncate">{c.title}</td>
-                <td className="px-4 py-3"><SeverityBadge severity={c.severity} /></td>
-                <td className="px-4 py-3"><CaseStatusPill status={c.status} /></td>
-                <td className="px-4 py-3 text-[var(--color-text-secondary)]">{c.assignedTo}</td>
-                <td className="px-4 py-3 font-mono text-[var(--color-text-secondary)]">{c.alertIds?.length ?? c.alertCount}</td>
-                <td className="px-4 py-3 font-mono text-[var(--color-info)] whitespace-nowrap">{c.created}</td>
-              </tr>
-            ))}
-            {filtered.length === 0 && (
-              <tr>
-                <td colSpan={7} className="px-4 py-8 text-center text-[var(--color-text-muted)] font-mono">No cases in this state.</td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 items-start">
+        {STATUS_FLOW.filter(s => statusFilter === 'All' || statusFilter === s).map(status => {
+          const colCases = filtered.filter(c => c.status === status)
+          const dotColor = STATUS_COLOR[status]
+          return (
+            <div key={status} className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg overflow-hidden">
+              <div className="flex items-center gap-2 px-3.5 py-3 border-b border-[var(--color-border)]">
+                <span className="w-2 h-2 rounded-full shrink-0" style={{ background: dotColor }} />
+                <span className="text-xs font-bold text-[var(--color-text-primary)] flex-1">{status}</span>
+                <span className="text-[10px] font-mono text-[var(--color-text-muted)]">{colCases.length}</span>
+              </div>
+              <div className="p-2.5 flex flex-col gap-2.5 max-h-[560px] overflow-y-auto">
+                {colCases.length === 0 && (
+                  <div className="text-[11px] text-[var(--color-text-muted)] italic px-1.5 py-2">No cases</div>
+                )}
+                {colCases.map(c => (
+                  <button
+                    key={c.id}
+                    onClick={() => setSelectedCase(c)}
+                    className="text-left w-full bg-[var(--color-surface-2)] border border-[var(--color-border)] rounded-lg p-3 hover:border-[var(--color-border-bright)] hover:-translate-y-0.5 transition-all"
+                  >
+                    <div className="flex items-center gap-1.5 text-[9.5px] font-mono text-[var(--color-text-muted)] mb-1.5">
+                      <SeverityDot severity={c.severity} />
+                      {c.id}
+                    </div>
+                    <div className="text-xs font-bold text-[var(--color-text-primary)] leading-snug mb-2 line-clamp-2">{c.title}</div>
+                    {c.tags && c.tags.length > 0 && (
+                      <div className="flex flex-wrap gap-1 mb-2.5">
+                        {c.tags.slice(0, 3).map(t => (
+                          <span key={t} className="text-[9px] font-mono font-semibold px-1.5 py-0.5 rounded bg-[var(--color-surface)] border border-[var(--color-border)] text-[var(--color-text-secondary)]">{t}</span>
+                        ))}
+                      </div>
+                    )}
+                    <div className="flex items-center justify-between text-[10px] text-[var(--color-text-muted)]">
+                      <span className="flex items-center gap-1">
+                        <svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.4"><path d="M1.5 8h3l1.5-4 3 8 1.5-4h3" /></svg>
+                        {c.alertIds?.length ?? c.alertCount} alert{(c.alertIds?.length ?? c.alertCount) === 1 ? '' : 's'}
+                      </span>
+                      <span className="truncate ml-2">{c.assignedTo}</span>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )
+        })}
       </div>
+      {filtered.length === 0 && (
+        <div className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg px-4 py-8 text-center text-[var(--color-text-muted)] font-mono text-xs">No cases in this state.</div>
+      )}
 
       {openCase && <CaseDetail caseItem={openCase} onClose={() => setSelectedCase(null)} />}
       {showNewCase && <NewCaseModal onClose={() => setShowNewCase(false)} />}

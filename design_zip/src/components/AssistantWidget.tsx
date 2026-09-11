@@ -14,7 +14,7 @@ function Bubble({ msg }: { msg: ChatMessage }) {
       <div
         className="max-w-[85%] rounded-lg px-3 py-2 text-[12.5px] leading-relaxed whitespace-pre-wrap"
         style={isUser
-          ? { background: '#00d4ff20', color: 'var(--color-text-primary)', border: '1px solid #00d4ff40' }
+          ? { background: '#4f8cff20', color: 'var(--color-text-primary)', border: '1px solid #4f8cff40' }
           : { background: 'var(--color-surface-2)', color: 'var(--color-text-primary)', border: '1px solid var(--color-border)' }}
       >
         {msg.content}
@@ -64,9 +64,9 @@ export default function AssistantWidget() {
         className="fixed bottom-5 right-5 z-40 w-13 h-13 rounded-full flex items-center justify-center shadow-lg transition-transform hover:scale-105"
         style={{
           width: 52, height: 52,
-          background: open ? 'var(--color-surface-2)' : '#00d4ff',
+          background: open ? 'var(--color-surface-2)' : '#4f8cff',
           border: open ? '1px solid var(--color-border-bright)' : 'none',
-          boxShadow: open ? 'none' : '0 4px 20px -4px #00d4ff80',
+          boxShadow: open ? 'none' : '0 4px 20px -4px #4f8cff80',
         }}
         title="AI Assistant"
       >
@@ -86,7 +86,7 @@ export default function AssistantWidget() {
           style={{ background: 'var(--color-background)', borderColor: 'var(--color-border-bright)', boxShadow: '0 20px 60px -15px rgba(0,0,0,0.6)' }}
         >
           <div className="px-4 py-3 border-b flex items-center gap-2" style={{ borderColor: 'var(--color-border)' }}>
-            <span className="w-2 h-2 rounded-full bg-[#00d4ff]" />
+            <span className="w-2 h-2 rounded-full bg-[#4f8cff]" />
             <span className="text-xs font-semibold text-[var(--color-text-primary)]">AI Assistant</span>
             <span className="text-[10px] text-[var(--color-text-muted)] ml-auto">Groq · live data</span>
           </div>
@@ -101,7 +101,7 @@ export default function AssistantWidget() {
                   <button
                     key={q}
                     onClick={() => send(q)}
-                    className="block w-full text-left text-[12px] px-3 py-2 rounded-lg border transition-colors hover:border-[#00d4ff40] hover:text-[#00d4ff]"
+                    className="block w-full text-left text-[12px] px-3 py-2 rounded-lg border transition-colors hover:border-[#4f8cff40] hover:text-[#4f8cff]"
                     style={{ borderColor: 'var(--color-border)', color: 'var(--color-text-secondary)' }}
                   >
                     {q}
@@ -117,7 +117,7 @@ export default function AssistantWidget() {
                 </div>
               </div>
             )}
-            {error && <div className="text-[11px] text-[#ef4444] px-1">{error}</div>}
+            {error && <div className="text-[11px] text-[#fb4a63] px-1">{error}</div>}
           </div>
 
           <div className="p-2.5 border-t flex items-center gap-2" style={{ borderColor: 'var(--color-border)' }}>
@@ -127,12 +127,12 @@ export default function AssistantWidget() {
               onKeyDown={e => { if (e.key === 'Enter') send(input) }}
               placeholder="Ask about alerts, cases…"
               disabled={loading}
-              className="flex-1 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg px-3 py-2 text-xs text-[var(--color-text-primary)] focus:outline-none focus:border-[#00d4ff40] disabled:opacity-60"
+              className="flex-1 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg px-3 py-2 text-xs text-[var(--color-text-primary)] focus:outline-none focus:border-[#4f8cff40] disabled:opacity-60"
             />
             <button
               onClick={() => send(input)}
               disabled={loading || !input.trim()}
-              className="px-3 py-2 rounded-lg bg-[#00d4ff15] border border-[#00d4ff40] text-[#00d4ff] text-[11px] font-semibold hover:bg-[#00d4ff25] transition-colors disabled:opacity-40"
+              className="px-3 py-2 rounded-lg bg-[#4f8cff15] border border-[#4f8cff40] text-[#4f8cff] text-[11px] font-semibold hover:bg-[#4f8cff25] transition-colors disabled:opacity-40"
             >
               Send
             </button>

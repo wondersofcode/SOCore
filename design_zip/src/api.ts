@@ -34,11 +34,17 @@ async function req<T>(path: string, init?: RequestInit, timeoutMs = 4000): Promi
   return res.json() as Promise<T>
 }
 
+export interface ConnectionStatus {
+  connected: boolean
+  url: string | null
+}
+
 export interface Health {
   status: string
   aiLive: boolean
   alerts: number
   pending: number
+  connections: Record<string, ConnectionStatus>
 }
 
 export interface ChatMessage {

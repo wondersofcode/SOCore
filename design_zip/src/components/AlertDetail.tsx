@@ -32,14 +32,14 @@ export default function AlertDetail({
   if (!alert) return null
 
   const steps: TimelineStep[] = [
-    { label: 'Detected', time: formatTimeOfDay(alert.detectedAt, alert.timestamp, timezone), done: true, color: '#00d4ff' },
-    { label: 'Enriched', time: alert.enrichedAt ? formatTimeOfDay(alert.enrichedAt, alert.timestamp, timezone) : '—', done: !!alert.enrichedAt, color: '#a855f7' },
-    { label: 'Responded', time: alert.respondedAt ? formatTimeOfDay(alert.respondedAt, alert.timestamp, timezone) : '—', done: !!alert.respondedAt, color: '#f97316' },
-    { label: 'Tracked', time: alert.status === 'Resolved' ? formatTimeOfDay('09:45:00', alert.timestamp, timezone) : '—', done: alert.status === 'Resolved', color: '#22c55e' },
+    { label: 'Detected', time: formatTimeOfDay(alert.detectedAt, alert.timestamp, timezone), done: true, color: '#4f8cff' },
+    { label: 'Enriched', time: alert.enrichedAt ? formatTimeOfDay(alert.enrichedAt, alert.timestamp, timezone) : '—', done: !!alert.enrichedAt, color: '#9c8bfb' },
+    { label: 'Responded', time: alert.respondedAt ? formatTimeOfDay(alert.respondedAt, alert.timestamp, timezone) : '—', done: !!alert.respondedAt, color: '#ff9d4d' },
+    { label: 'Tracked', time: alert.status === 'Resolved' ? formatTimeOfDay('09:45:00', alert.timestamp, timezone) : '—', done: alert.status === 'Resolved', color: '#30d18a' },
   ]
 
-  const vtColor = alert.vtScore >= 75 ? '#ef4444' : alert.vtScore >= 40 ? '#f97316' : '#22c55e'
-  const abuseColor = alert.abuseScore >= 75 ? '#ef4444' : alert.abuseScore >= 40 ? '#f97316' : '#22c55e'
+  const vtColor = alert.vtScore >= 75 ? '#fb4a63' : alert.vtScore >= 40 ? '#ff9d4d' : '#30d18a'
+  const abuseColor = alert.abuseScore >= 75 ? '#fb4a63' : alert.abuseScore >= 40 ? '#ff9d4d' : '#30d18a'
 
   return (
     <div className="fixed inset-0 z-50 flex" onClick={onClose}>
@@ -60,7 +60,7 @@ export default function AlertDetail({
             </div>
             <div className="text-[var(--color-text-primary)] font-semibold text-lg leading-tight">{alert.attackType}</div>
             <div className="flex items-center gap-3 text-xs">
-              <span className="font-mono text-[#a855f7]">{alert.mitreId}</span>
+              <span className="font-mono text-[#9c8bfb]">{alert.mitreId}</span>
               <span className="text-[var(--color-text-muted)]">·</span>
               <span className="text-[var(--color-text-secondary)]">{alert.mitreName}</span>
               <span className="text-[var(--color-text-muted)]">·</span>
@@ -91,9 +91,9 @@ export default function AlertDetail({
 
           {/* Pending decision */}
           {alert.approvalStatus === 'Pending' && alert.proposedAction && (
-            <div className="rounded-lg border border-[#f9731640] bg-[#f9731608] overflow-hidden">
+            <div className="rounded-lg border border-[#ff9d4d40] bg-[#ff9d4d08] overflow-hidden">
               <div className="px-4 py-3">
-                <div className="text-[11px] font-semibold text-[#f97316] mb-1.5">Waiting for your decision</div>
+                <div className="text-[11px] font-semibold text-[#ff9d4d] mb-1.5">Waiting for your decision</div>
                 <div className="text-sm text-[var(--color-text-primary)]">{alert.proposedAction.action}</div>
                 <div className="mt-1 text-xs text-[var(--color-text-secondary)]">
                   Target <span className="font-mono text-[var(--color-text-primary)]">{alert.proposedAction.target}</span>
@@ -103,12 +103,12 @@ export default function AlertDetail({
                   Raised by {alert.proposedAction.playbook} because risk scored {alert.riskScore}, above the threshold of 70
                 </div>
               </div>
-              <div className="border-t border-[#f9731630] bg-[var(--color-background)] px-4 py-3 flex items-center gap-2">
+              <div className="border-t border-[#ff9d4d30] bg-[var(--color-background)] px-4 py-3 flex items-center gap-2">
                 <input
                   value={reason}
                   onChange={e => setReason(e.target.value)}
                   placeholder="Reason (recorded in the audit trail)"
-                  className="flex-1 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg px-3 py-1.5 text-xs text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] focus:outline-none focus:border-[#00d4ff40]"
+                  className="flex-1 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg px-3 py-1.5 text-xs text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] focus:outline-none focus:border-[#4f8cff40]"
                 />
                 <button
                   onClick={() => decide(alert.id, 'Rejected', reason || 'No reason given')}
@@ -118,7 +118,7 @@ export default function AlertDetail({
                 </button>
                 <button
                   onClick={() => decide(alert.id, 'Approved', reason || 'No reason given')}
-                  className="px-3 py-1.5 rounded-lg bg-[#22c55e20] border border-[#22c55e50] text-xs font-semibold text-[#22c55e] hover:bg-[#22c55e30] transition-colors whitespace-nowrap"
+                  className="px-3 py-1.5 rounded-lg bg-[#30d18a20] border border-[#30d18a50] text-xs font-semibold text-[#30d18a] hover:bg-[#30d18a30] transition-colors whitespace-nowrap"
                 >
                   Approve and run
                 </button>
@@ -153,7 +153,7 @@ export default function AlertDetail({
             {alert.sourceEventId && (
               <button
                 onClick={() => onViewEvent?.(alert.sourceEventId!)}
-                className="mt-3 text-[11px] font-mono text-[#00d4ff] hover:underline flex items-center gap-1.5"
+                className="mt-3 text-[11px] font-mono text-[#4f8cff] hover:underline flex items-center gap-1.5"
               >
                 <svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round">
                   <path d="M1 6s2-3.5 5-3.5S11 6 11 6s-2 3.5-5 3.5S1 6 1 6Z" />
@@ -210,9 +210,9 @@ export default function AlertDetail({
             <div className="bg-[var(--color-background)] border border-[var(--color-border)] rounded-lg overflow-hidden">
               <div className="flex items-center gap-2 px-4 py-2 bg-[var(--color-surface)] border-b border-[var(--color-border)]">
                 <div className="flex gap-1.5">
-                  <div className="w-2.5 h-2.5 rounded-full bg-[#ef4444] opacity-60" />
-                  <div className="w-2.5 h-2.5 rounded-full bg-[#eab308] opacity-60" />
-                  <div className="w-2.5 h-2.5 rounded-full bg-[#22c55e] opacity-60" />
+                  <div className="w-2.5 h-2.5 rounded-full bg-[#fb4a63] opacity-60" />
+                  <div className="w-2.5 h-2.5 rounded-full bg-[#f2c94c] opacity-60" />
+                  <div className="w-2.5 h-2.5 rounded-full bg-[#30d18a] opacity-60" />
                 </div>
                 <span className="text-[10px] font-mono text-[var(--color-text-muted)] ml-2">raw.log</span>
               </div>
@@ -262,22 +262,22 @@ export default function AlertDetail({
               onChange={e => setNote(e.target.value)}
               rows={3}
               placeholder="Add analyst note..."
-              className="w-full bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg px-3 py-2.5 text-xs font-mono text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] focus:outline-none focus:border-[#00d4ff] transition-colors resize-none"
+              className="w-full bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg px-3 py-2.5 text-xs font-mono text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] focus:outline-none focus:border-[#4f8cff] transition-colors resize-none"
             />
           </div>
         </div>
 
         {/* Action Bar */}
         <div className="sticky bottom-0 bg-[var(--color-background)] border-t border-[var(--color-border)] px-6 py-4 flex items-center gap-3">
-          <button className="flex-1 py-2 rounded-lg bg-[#ef444420] border border-[#ef444440] text-[#ef4444] text-xs font-semibold uppercase tracking-wider hover:bg-[#ef444430] transition-colors">
+          <button className="flex-1 py-2 rounded-lg bg-[#fb4a6320] border border-[#fb4a6340] text-[#fb4a63] text-xs font-semibold uppercase tracking-wider hover:bg-[#fb4a6330] transition-colors">
             Escalate to Case
           </button>
-          <button className="flex-1 py-2 rounded-lg bg-[#eab30820] border border-[#eab30840] text-[#eab308] text-xs font-semibold uppercase tracking-wider hover:bg-[#eab30830] transition-colors">
+          <button className="flex-1 py-2 rounded-lg bg-[#f2c94c20] border border-[#f2c94c40] text-[#f2c94c] text-xs font-semibold uppercase tracking-wider hover:bg-[#f2c94c30] transition-colors">
             Mark False Positive
           </button>
           <button
             onClick={() => { if (note.trim()) { setNoteSubmitted(true); setNote('') } }}
-            className="flex-1 py-2 rounded-lg bg-[#00d4ff15] border border-[#00d4ff40] text-[#00d4ff] text-xs font-semibold uppercase tracking-wider hover:bg-[#00d4ff25] transition-colors"
+            className="flex-1 py-2 rounded-lg bg-[#4f8cff15] border border-[#4f8cff40] text-[#4f8cff] text-xs font-semibold uppercase tracking-wider hover:bg-[#4f8cff25] transition-colors"
           >
             {noteSubmitted ? 'Note Saved ✓' : 'Save Note'}
           </button>

@@ -81,7 +81,7 @@ function AiShiftSummaryCard() {
     <div className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg px-5 py-4">
       <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
         <div className="flex items-center gap-2">
-          <span className="w-1.5 h-1.5 rounded-full bg-[#00d4ff]" />
+          <span className="w-1.5 h-1.5 rounded-full bg-[#4f8cff]" />
           <span className="text-sm text-[var(--color-text-primary)]">AI Shift Summary</span>
           <span className="text-[10px] text-[var(--color-text-muted)] font-mono">Groq</span>
         </div>
@@ -92,7 +92,7 @@ function AiShiftSummaryCard() {
                 key={w}
                 onClick={() => setHours(w)}
                 className="px-2.5 py-1 rounded-md text-[10px] font-semibold transition-colors"
-                style={hours === w ? { background: '#00d4ff20', color: '#00d4ff' } : { color: 'var(--color-text-secondary)' }}
+                style={hours === w ? { background: '#4f8cff20', color: '#4f8cff' } : { color: 'var(--color-text-secondary)' }}
               >
                 {w}h
               </button>
@@ -102,7 +102,7 @@ function AiShiftSummaryCard() {
             onClick={() => load(hours, true)}
             disabled={loading}
             title="Refresh"
-            className="w-7 h-7 rounded-lg border border-[var(--color-border)] flex items-center justify-center text-[var(--color-text-secondary)] hover:text-[#00d4ff] hover:border-[#00d4ff40] transition-colors disabled:opacity-50"
+            className="w-7 h-7 rounded-lg border border-[var(--color-border)] flex items-center justify-center text-[var(--color-text-secondary)] hover:text-[#4f8cff] hover:border-[#4f8cff40] transition-colors disabled:opacity-50"
           >
             <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" className={loading ? 'animate-spin' : ''}>
               <path d="M13.5 8a5.5 5.5 0 1 1-1.6-3.9M13.5 2.5v3.2h-3.2" />
@@ -111,7 +111,7 @@ function AiShiftSummaryCard() {
           <button
             onClick={exportExcel}
             disabled={exporting}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[var(--color-border)] text-[11px] font-semibold text-[var(--color-text-secondary)] hover:text-[#22c55e] hover:border-[#22c55e40] transition-colors disabled:opacity-50"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[var(--color-border)] text-[11px] font-semibold text-[var(--color-text-secondary)] hover:text-[#30d18a] hover:border-[#30d18a40] transition-colors disabled:opacity-50"
           >
             <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
               <path d="M8 1.5v9M8 10.5L5 7.5M8 10.5l3-3M2.5 12v1.5a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1V12" />
@@ -124,7 +124,7 @@ function AiShiftSummaryCard() {
       {loading ? (
         <div className="text-xs text-[var(--color-text-muted)] py-1">Generating summary…</div>
       ) : error ? (
-        <div className="text-xs text-[#ef4444] py-1">Could not load the shift summary — try refreshing.</div>
+        <div className="text-xs text-[#fb4a63] py-1">Could not load the shift summary — try refreshing.</div>
       ) : (
         <>
           <p className="text-xs text-[var(--color-text-secondary)] leading-relaxed max-w-3xl">{data?.summary}</p>
@@ -134,7 +134,7 @@ function AiShiftSummaryCard() {
           </div>
         </>
       )}
-      {exportError && <div className="text-[11px] text-[#ef4444] mt-2">Could not export — try again.</div>}
+      {exportError && <div className="text-[11px] text-[#fb4a63] mt-2">Could not export — try again.</div>}
     </div>
   )
 }
@@ -179,7 +179,7 @@ export default function Reports() {
           {' '}{autoHandled} were handled without human involvement; {humanReviewed} crossed the approval
           threshold and needed an analyst decision. {resolved} alerts are now closed.
         </p>
-        <button className="mt-3 text-[11px] px-3 py-1.5 rounded-lg border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:text-[#00d4ff] hover:border-[#00d4ff40] transition-colors">
+        <button className="mt-3 text-[11px] px-3 py-1.5 rounded-lg border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:text-[#4f8cff] hover:border-[#4f8cff40] transition-colors">
           Export as PDF
         </button>
       </div>
@@ -187,8 +187,8 @@ export default function Reports() {
       <div className="grid grid-cols-4 gap-3">
         <Metric label="Alerts this shift" value={String(total)} note={`${external} external`} />
         <Metric label="Average risk" value={String(avgRisk)} note="across all alerts" color={riskColor(avgRisk)} />
-        <Metric label="Decisions logged" value={String(decisions.length)} note="this session" color="#f97316" />
-        <Metric label="Simulations detected" value={`${detectedSims}/${simulations.length}`} note="detection coverage" color="#22c55e" />
+        <Metric label="Decisions logged" value={String(decisions.length)} note="this session" color="#ff9d4d" />
+        <Metric label="Simulations detected" value={`${detectedSims}/${simulations.length}`} note="detection coverage" color="#30d18a" />
       </div>
 
       <div className="grid grid-cols-2 gap-3">

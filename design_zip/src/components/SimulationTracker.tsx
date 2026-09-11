@@ -4,11 +4,11 @@ import { simulations } from '../data'
 import type { SimStatus } from '../data'
 
 const killChainColors: Record<string, string> = {
-  'Credential Access': '#ef4444',
-  'Command & Control': '#a855f7',
-  'Persistence': '#f97316',
-  'Execution': '#eab308',
-  'Lateral Movement': '#00d4ff',
+  'Credential Access': '#fb4a63',
+  'Command & Control': '#9c8bfb',
+  'Persistence': '#ff9d4d',
+  'Execution': '#f2c94c',
+  'Lateral Movement': '#4f8cff',
   'Exfiltration': '#f43f5e',
 }
 
@@ -31,26 +31,26 @@ export default function SimulationTracker() {
   return (
     <div className="space-y-4">
       {/* Header banner */}
-      <div className="relative bg-[var(--color-surface)] border border-[#a855f740] rounded-lg p-4 overflow-hidden">
-        <div className="absolute inset-0 opacity-5" style={{ background: 'linear-gradient(135deg, #a855f7 0%, #ec4899 100%)' }} />
-        <div className="absolute inset-x-0 top-0 h-px" style={{ background: 'linear-gradient(90deg, transparent, #a855f780, transparent)' }} />
+      <div className="relative bg-[var(--color-surface)] border border-[#9c8bfb40] rounded-lg p-4 overflow-hidden">
+        <div className="absolute inset-0 opacity-5" style={{ background: 'linear-gradient(135deg, #9c8bfb 0%, #ec4899 100%)' }} />
+        <div className="absolute inset-x-0 top-0 h-px" style={{ background: 'linear-gradient(90deg, transparent, #9c8bfb80, transparent)' }} />
         <div className="relative flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-[#a855f720] border border-[#a855f740] flex items-center justify-center">
+            <div className="w-8 h-8 rounded-lg bg-[#9c8bfb20] border border-[#9c8bfb40] flex items-center justify-center">
               <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                <path d="M3 8L7 12L13 4" stroke="#a855f7" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                <circle cx="8" cy="8" r="7" stroke="#a855f7" strokeWidth="1" opacity="0.4" />
+                <path d="M3 8L7 12L13 4" stroke="#9c8bfb" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                <circle cx="8" cy="8" r="7" stroke="#9c8bfb" strokeWidth="1" opacity="0.4" />
               </svg>
             </div>
             <div>
               <div className="text-sm font-semibold text-[var(--color-text-primary)]">Simulation Tracker</div>
-              <div className="text-[10px] text-[#a855f7] font-mono mt-0.5">PURPLE TEAM · CONTROLLED ENVIRONMENT</div>
+              <div className="text-[10px] text-[#9c8bfb] font-mono mt-0.5">PURPLE TEAM · CONTROLLED ENVIRONMENT</div>
             </div>
           </div>
           <div className="flex items-center gap-4 text-xs font-mono">
-            <div className="text-center"><div className="text-[#22c55e] font-bold text-lg">{counts.Detected || 0}</div><div className="text-[var(--color-info)] text-[9px] uppercase tracking-widest">Detected</div></div>
-            <div className="text-center"><div className="text-[#eab308] font-bold text-lg">{counts.Tested || 0}</div><div className="text-[var(--color-info)] text-[9px] uppercase tracking-widest">Tested</div></div>
-            <div className="text-center"><div className="text-[#3b82f6] font-bold text-lg">{counts.Scripted || 0}</div><div className="text-[var(--color-info)] text-[9px] uppercase tracking-widest">Scripted</div></div>
+            <div className="text-center"><div className="text-[#30d18a] font-bold text-lg">{counts.Detected || 0}</div><div className="text-[var(--color-info)] text-[9px] uppercase tracking-widest">Detected</div></div>
+            <div className="text-center"><div className="text-[#f2c94c] font-bold text-lg">{counts.Tested || 0}</div><div className="text-[var(--color-info)] text-[9px] uppercase tracking-widest">Tested</div></div>
+            <div className="text-center"><div className="text-[#4f8cff] font-bold text-lg">{counts.Scripted || 0}</div><div className="text-[var(--color-info)] text-[9px] uppercase tracking-widest">Scripted</div></div>
             <div className="text-center"><div className="text-[var(--color-info)] font-bold text-lg">{counts.Planned || 0}</div><div className="text-[var(--color-info)] text-[9px] uppercase tracking-widest">Planned</div></div>
           </div>
         </div>
@@ -64,7 +64,7 @@ export default function SimulationTracker() {
             onClick={() => setFilter(s)}
             className={`px-3 py-1.5 rounded text-[10px] font-semibold uppercase tracking-widest transition-colors ${
               filter === s
-                ? 'bg-[#a855f720] border border-[#a855f740] text-[#a855f7]'
+                ? 'bg-[#9c8bfb20] border border-[#9c8bfb40] text-[#9c8bfb]'
                 : 'text-[var(--color-info)] hover:text-[var(--color-text-secondary)] border border-transparent'
             }`}
           >
@@ -89,8 +89,8 @@ export default function SimulationTracker() {
               return (
                 <tr key={sim.id} className="border-b border-[var(--color-border)] last:border-b-0 hover:bg-[var(--color-surface-2)] transition-colors group">
                   <td className="px-4 py-3 font-mono text-[var(--color-text-muted)]">{sim.id}</td>
-                  <td className="px-4 py-3 text-[var(--color-text-primary)] font-medium group-hover:text-[#a855f7] transition-colors">{sim.name}</td>
-                  <td className="px-4 py-3 font-mono text-[#a855f7]">{sim.mitreId}</td>
+                  <td className="px-4 py-3 text-[var(--color-text-primary)] font-medium group-hover:text-[#9c8bfb] transition-colors">{sim.name}</td>
+                  <td className="px-4 py-3 font-mono text-[#9c8bfb]">{sim.mitreId}</td>
                   <td className="px-4 py-3">
                     <span
                       className="inline-block px-2 py-0.5 rounded text-[10px] font-mono font-semibold"
@@ -105,7 +105,7 @@ export default function SimulationTracker() {
                   <td className="px-4 py-3"><SimStatusPill status={sim.status} /></td>
                   <td className="px-4 py-3 font-mono text-[var(--color-info)] whitespace-nowrap">{sim.lastRun}</td>
                   <td className="px-4 py-3 font-mono">
-                    <span className={sim.ttd === '—' ? 'text-[var(--color-text-muted)]' : 'text-[#00d4ff]'}>{sim.ttd}</span>
+                    <span className={sim.ttd === '—' ? 'text-[var(--color-text-muted)]' : 'text-[#4f8cff]'}>{sim.ttd}</span>
                   </td>
                   <td className="px-4 py-3">
                     <button
@@ -113,14 +113,14 @@ export default function SimulationTracker() {
                       disabled={isRunning}
                       className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-[10px] font-semibold uppercase tracking-wider transition-all whitespace-nowrap"
                       style={{
-                        borderColor: isRunning ? '#a855f780' : '#a855f740',
-                        background: isRunning ? '#a855f720' : '#a855f710',
-                        color: isRunning ? '#a855f7' : 'var(--color-text-secondary)',
+                        borderColor: isRunning ? '#9c8bfb80' : '#9c8bfb40',
+                        background: isRunning ? '#9c8bfb20' : '#9c8bfb10',
+                        color: isRunning ? '#9c8bfb' : 'var(--color-text-secondary)',
                       }}
                     >
                       {isRunning ? (
                         <>
-                          <span className="w-2 h-2 rounded-full bg-[#a855f7] pulse-live" />
+                          <span className="w-2 h-2 rounded-full bg-[#9c8bfb] pulse-live" />
                           Running…
                         </>
                       ) : (

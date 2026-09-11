@@ -5,33 +5,40 @@
 
 @import 'tailwindcss';
 
+/* SOCore Command Center palette — refined dark theme (deep navy surfaces,
+   restrained blue accent, Manrope/Inter/JetBrains Mono type). Every
+   `bg-[var(--color-x)]` / `var(--color-x)` call site across the app repaints
+   from these tokens alone — component code below is unchanged.
+   `--color-cyan`/`--color-purple` keep their original names (renaming would
+   mean touching every call site) but now hold the new accent blue / violet. */
 @theme inline {
-  --color-background: #0d1117;
-  --color-surface: #161b22;
-  --color-surface-2: #1c2128;
-  --color-border: #21262d;
-  --color-border-bright: #30363d;
-  --color-cyan: #00d4ff;
-  --color-cyan-dim: #00d4ff26;
-  --color-cyan-glow: #00d4ff40;
-  --color-purple: #a855f7;
-  --color-purple-dim: #a855f726;
-  --color-critical: #ef4444;
-  --color-critical-dim: #ef444420;
-  --color-high: #f97316;
-  --color-high-dim: #f9731620;
-  --color-medium: #eab308;
-  --color-medium-dim: #eab30820;
-  --color-low: #3b82f6;
-  --color-low-dim: #3b82f620;
-  --color-info: #6b7280;
-  --color-info-dim: #6b728020;
-  --color-success: #22c55e;
-  --color-text-primary: #e6edf3;
-  --color-text-secondary: #8b949e;
-  --color-text-muted: #484f58;
+  --color-background: #0a0c10;
+  --color-surface: #14171e;
+  --color-surface-2: #20252f;
+  --color-border: #1f2430;
+  --color-border-bright: #363d4b;
+  --color-cyan: #4f8cff;
+  --color-cyan-dim: #4f8cff26;
+  --color-cyan-glow: #4f8cff40;
+  --color-purple: #9c8bfb;
+  --color-purple-dim: #9c8bfb26;
+  --color-critical: #fb4a63;
+  --color-critical-dim: #fb4a6320;
+  --color-high: #ff9d4d;
+  --color-high-dim: #ff9d4d20;
+  --color-medium: #f2c94c;
+  --color-medium-dim: #f2c94c20;
+  --color-low: #4f8cff;
+  --color-low-dim: #4f8cff20;
+  --color-info: #7d8798;
+  --color-info-dim: #7d879820;
+  --color-success: #30d18a;
+  --color-text-primary: #f1f4f9;
+  --color-text-secondary: #a3adbd;
+  --color-text-muted: #666f80;
   --font-sans: 'Inter', system-ui, sans-serif;
   --font-mono: 'JetBrains Mono', monospace;
+  --font-display: 'Manrope', 'Inter', sans-serif;
 }
 
 /* Light theme — applied via [data-theme="light"] on <html>, set from
@@ -92,6 +99,12 @@ body {
   font-family: 'JetBrains Mono', monospace;
 }
 
+.font-display,
+h1, h2, h3 {
+  font-family: 'Manrope', 'Inter', sans-serif;
+  letter-spacing: -0.01em;
+}
+
 @keyframes pulse-dot {
   0%, 100% { opacity: 1; transform: scale(1); }
   50% { opacity: 0.5; transform: scale(0.85); }
@@ -110,8 +123,8 @@ body {
 }
 
 @keyframes glow-flicker {
-  0%, 100% { box-shadow: 0 0 8px #00d4ff40; }
-  50% { box-shadow: 0 0 16px #00d4ff70; }
+  0%, 100% { box-shadow: 0 0 8px #4f8cff40; }
+  50% { box-shadow: 0 0 16px #4f8cff70; }
 }
 
 .pulse-live {
@@ -129,8 +142,8 @@ body {
 /* Grid overlay bg */
 .grid-bg {
   background-image:
-    linear-gradient(rgba(0, 212, 255, 0.03) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(0, 212, 255, 0.03) 1px, transparent 1px);
+    linear-gradient(rgba(79, 140, 255, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(79, 140, 255, 0.03) 1px, transparent 1px);
   background-size: 32px 32px;
 }
 
@@ -175,10 +188,10 @@ body {
 
 /* Recharts custom */
 .recharts-cartesian-grid line {
-  stroke: #21262d !important;
+  stroke: #1f2430 !important;
 }
 .recharts-text {
-  fill: #8b949e !important;
+  fill: #a3adbd !important;
   font-family: 'JetBrains Mono', monospace !important;
   font-size: 11px !important;
 }

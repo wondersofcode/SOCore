@@ -2,10 +2,10 @@ import type { Severity, AlertStatus, CaseStatus, SimStatus } from '../data'
 
 // ── Severity Badge ──────────────────────────────────────────────────────────
 const severityConfig: Record<Severity, { bg: string; text: string; border: string }> = {
-  Critical: { bg: 'bg-[#ef444420]', text: 'text-[#ef4444]', border: 'border-[#ef444440]' },
-  High: { bg: 'bg-[#f9731620]', text: 'text-[#f97316]', border: 'border-[#f9731640]' },
-  Medium: { bg: 'bg-[#eab30820]', text: 'text-[#eab308]', border: 'border-[#eab30840]' },
-  Low: { bg: 'bg-[#3b82f620]', text: 'text-[#3b82f6]', border: 'border-[#3b82f640]' },
+  Critical: { bg: 'bg-[#fb4a6320]', text: 'text-[#fb4a63]', border: 'border-[#fb4a6340]' },
+  High: { bg: 'bg-[#ff9d4d20]', text: 'text-[#ff9d4d]', border: 'border-[#ff9d4d40]' },
+  Medium: { bg: 'bg-[#f2c94c20]', text: 'text-[#f2c94c]', border: 'border-[#f2c94c40]' },
+  Low: { bg: 'bg-[#4f8cff20]', text: 'text-[#4f8cff]', border: 'border-[#4f8cff40]' },
   Informational: { bg: 'bg-[#6b728020]', text: 'text-[var(--color-info)]', border: 'border-[#6b728040]' },
 }
 
@@ -20,10 +20,10 @@ export function SeverityBadge({ severity }: { severity: Severity }) {
 
 export function SeverityDot({ severity }: { severity: Severity }) {
   const colors: Record<Severity, string> = {
-    Critical: 'bg-[#ef4444]',
-    High: 'bg-[#f97316]',
-    Medium: 'bg-[#eab308]',
-    Low: 'bg-[#3b82f6]',
+    Critical: 'bg-[#fb4a63]',
+    High: 'bg-[#ff9d4d]',
+    Medium: 'bg-[#f2c94c]',
+    Low: 'bg-[#4f8cff]',
     Informational: 'bg-[var(--color-info)]',
   }
   return <span className={`inline-block w-2 h-2 rounded-full ${colors[severity]} shrink-0`} />
@@ -31,10 +31,10 @@ export function SeverityDot({ severity }: { severity: Severity }) {
 
 // ── Status Pill ─────────────────────────────────────────────────────────────
 const alertStatusConfig: Record<AlertStatus, { bg: string; text: string }> = {
-  New: { bg: 'bg-[#00d4ff15]', text: 'text-[#00d4ff]' },
-  Enriching: { bg: 'bg-[#a855f715]', text: 'text-[#a855f7]' },
-  Responding: { bg: 'bg-[#f9731615]', text: 'text-[#f97316]' },
-  Resolved: { bg: 'bg-[#22c55e15]', text: 'text-[#22c55e]' },
+  New: { bg: 'bg-[#4f8cff15]', text: 'text-[#4f8cff]' },
+  Enriching: { bg: 'bg-[#9c8bfb15]', text: 'text-[#9c8bfb]' },
+  Responding: { bg: 'bg-[#ff9d4d15]', text: 'text-[#ff9d4d]' },
+  Resolved: { bg: 'bg-[#30d18a15]', text: 'text-[#30d18a]' },
 }
 
 export function AlertStatusPill({ status }: { status: AlertStatus }) {
@@ -48,10 +48,10 @@ export function AlertStatusPill({ status }: { status: AlertStatus }) {
 }
 
 const caseStatusConfig: Record<CaseStatus, { bg: string; text: string }> = {
-  Open: { bg: 'bg-[#00d4ff15]', text: 'text-[#00d4ff]' },
-  Investigating: { bg: 'bg-[#f9731615]', text: 'text-[#f97316]' },
-  Contained: { bg: 'bg-[#a855f715]', text: 'text-[#a855f7]' },
-  Closed: { bg: 'bg-[#22c55e15]', text: 'text-[#22c55e]' },
+  Open: { bg: 'bg-[#4f8cff15]', text: 'text-[#4f8cff]' },
+  Investigating: { bg: 'bg-[#ff9d4d15]', text: 'text-[#ff9d4d]' },
+  Contained: { bg: 'bg-[#9c8bfb15]', text: 'text-[#9c8bfb]' },
+  Closed: { bg: 'bg-[#30d18a15]', text: 'text-[#30d18a]' },
 }
 
 export function CaseStatusPill({ status }: { status: CaseStatus }) {
@@ -66,9 +66,9 @@ export function CaseStatusPill({ status }: { status: CaseStatus }) {
 
 const simStatusConfig: Record<SimStatus, { bg: string; text: string }> = {
   Planned: { bg: 'bg-[#6b728020]', text: 'text-[var(--color-info)]' },
-  Scripted: { bg: 'bg-[#3b82f620]', text: 'text-[#3b82f6]' },
-  Tested: { bg: 'bg-[#eab30820]', text: 'text-[#eab308]' },
-  Detected: { bg: 'bg-[#22c55e20]', text: 'text-[#22c55e]' },
+  Scripted: { bg: 'bg-[#4f8cff20]', text: 'text-[#4f8cff]' },
+  Tested: { bg: 'bg-[#f2c94c20]', text: 'text-[#f2c94c]' },
+  Detected: { bg: 'bg-[#30d18a20]', text: 'text-[#30d18a]' },
 }
 
 export function SimStatusPill({ status }: { status: SimStatus }) {
@@ -90,7 +90,7 @@ interface StatCardProps {
   glow?: boolean
 }
 
-export function StatCard({ icon, label, value, trend, accent = '#00d4ff', glow }: StatCardProps) {
+export function StatCard({ icon, label, value, trend, accent = '#4f8cff', glow }: StatCardProps) {
   return (
     <div
       className="relative bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg p-4 overflow-hidden group hover:border-[var(--color-border-bright)] transition-colors"
@@ -108,7 +108,7 @@ export function StatCard({ icon, label, value, trend, accent = '#00d4ff', glow }
       </div>
       <div className="text-3xl font-bold text-[var(--color-text-primary)] tracking-tight font-mono">{value}</div>
       {trend && (
-        <div className={`mt-2 flex items-center gap-1 text-xs font-mono ${trend.positive ? 'text-[#22c55e]' : 'text-[#ef4444]'}`}>
+        <div className={`mt-2 flex items-center gap-1 text-xs font-mono ${trend.positive ? 'text-[#30d18a]' : 'text-[#fb4a63]'}`}>
           <span>{trend.direction === 'up' ? '↑' : '↓'}</span>
           <span>{trend.label}</span>
         </div>
@@ -121,9 +121,9 @@ export function StatCard({ icon, label, value, trend, accent = '#00d4ff', glow }
 export function EmptyState({ message = 'No alerts detected', sub = 'Systems operating within normal parameters.' }: { message?: string; sub?: string }) {
   return (
     <div className="flex flex-col items-center justify-center py-16 gap-3">
-      <div className="w-12 h-12 rounded-full bg-[#22c55e15] border border-[#22c55e30] flex items-center justify-center">
+      <div className="w-12 h-12 rounded-full bg-[#30d18a15] border border-[#30d18a30] flex items-center justify-center">
         <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-          <path d="M10 2L12.5 7H18L14 11L16 17L10 13.5L4 17L6 11L2 7H7.5L10 2Z" stroke="#22c55e" strokeWidth="1.5" strokeLinejoin="round" />
+          <path d="M10 2L12.5 7H18L14 11L16 17L10 13.5L4 17L6 11L2 7H7.5L10 2Z" stroke="#30d18a" strokeWidth="1.5" strokeLinejoin="round" />
         </svg>
       </div>
       <div className="text-[var(--color-text-primary)] font-semibold text-sm">{message}</div>
@@ -154,7 +154,7 @@ export function PanelHeader({ title, children }: { title: string; children?: Rea
 // The correlation engine's output. Playbooks trigger above 70, so the dial
 // marks that threshold rather than an arbitrary midpoint.
 export function riskColor(score: number) {
-  return score >= 85 ? '#ef4444' : score >= 70 ? '#f97316' : score >= 40 ? '#eab308' : '#22c55e'
+  return score >= 85 ? '#fb4a63' : score >= 70 ? '#ff9d4d' : score >= 40 ? '#f2c94c' : '#30d18a'
 }
 
 export function RiskScore({ score, size = 'md' }: { score: number; size?: 'sm' | 'md' | 'lg' }) {
@@ -209,23 +209,23 @@ export function AiExplanation({
 }) {
   const short = text.length > 180 && collapsed
   return (
-    <div className="rounded-lg border border-[#a855f730] bg-[#a855f708] p-3.5">
+    <div className="rounded-lg border border-[#9c8bfb30] bg-[#9c8bfb08] p-3.5">
       <div className="flex items-center gap-2 mb-2">
         <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
-          <path d="M6.5 1l1.3 3.2L11 5.5 7.8 6.8 6.5 10 5.2 6.8 2 5.5l3.2-1.3L6.5 1z" stroke="#a855f7" strokeWidth="1" strokeLinejoin="round" />
+          <path d="M6.5 1l1.3 3.2L11 5.5 7.8 6.8 6.5 10 5.2 6.8 2 5.5l3.2-1.3L6.5 1z" stroke="#9c8bfb" strokeWidth="1" strokeLinejoin="round" />
         </svg>
-        <span className="text-[11px] font-semibold text-[#a855f7]">Why this was flagged</span>
+        <span className="text-[11px] font-semibold text-[#9c8bfb]">Why this was flagged</span>
         <span className="ml-auto text-[10px] font-mono text-[var(--color-info)]">{confidence}% confidence</span>
       </div>
       <p className="text-xs text-[var(--color-text-secondary)] leading-relaxed">
         {short ? `${text.slice(0, 180).trimEnd()}…` : text}
       </p>
       {text.length > 180 && onToggle && (
-        <button onClick={onToggle} className="mt-2 text-[11px] text-[#a855f7] hover:underline">
+        <button onClick={onToggle} className="mt-2 text-[11px] text-[#9c8bfb] hover:underline">
           {collapsed ? 'Read the full reasoning' : 'Show less'}
         </button>
       )}
-      <div className="mt-2.5 pt-2.5 border-t border-[#a855f720] text-[10px] text-[var(--color-text-muted)]">
+      <div className="mt-2.5 pt-2.5 border-t border-[#9c8bfb20] text-[10px] text-[var(--color-text-muted)]">
         Generated summary of the correlated signals. Verify against the raw log before acting.
       </div>
     </div>
@@ -236,8 +236,8 @@ export function AiExplanation({
 export function ApprovalPill({ status }: { status: import('../data').ApprovalStatus }) {
   if (status === 'None') return <span className="text-[10px] text-[var(--color-text-muted)]">automatic</span>
   const cfg = {
-    Pending: { c: '#f97316', label: 'Awaiting approval' },
-    Approved: { c: '#22c55e', label: 'Approved' },
+    Pending: { c: '#ff9d4d', label: 'Awaiting approval' },
+    Approved: { c: '#30d18a', label: 'Approved' },
     Rejected: { c: 'var(--color-info)', label: 'Rejected' },
   }[status]
   return (
@@ -254,8 +254,8 @@ export function ApprovalPill({ status }: { status: import('../data').ApprovalSta
 // ── Enrichment source row ───────────────────────────────────────────────────
 export function SourceRow({ source }: { source: import('../data').EnrichmentSource }) {
   const cfg = {
-    hit: { c: '#ef4444', label: 'match' },
-    clean: { c: '#22c55e', label: 'clean' },
+    hit: { c: '#fb4a63', label: 'match' },
+    clean: { c: '#30d18a', label: 'clean' },
     pending: { c: 'var(--color-info)', label: 'queued' },
     skipped: { c: 'var(--color-text-muted)', label: 'skipped' },
   }[source.status]

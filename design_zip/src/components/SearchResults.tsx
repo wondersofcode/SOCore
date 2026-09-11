@@ -29,7 +29,7 @@ export default function SearchResults({
       <div className="flex flex-col items-center justify-center py-20 gap-2">
         <div className="text-sm text-[var(--color-text-primary)]">Nothing matches “{query}”</div>
         <div className="text-xs text-[var(--color-info)]">Try an IP address, an alert ID, or a technique like T1110.</div>
-        <button onClick={onClear} className="mt-1 text-xs text-[#00d4ff] hover:underline">Clear the search</button>
+        <button onClick={onClear} className="mt-1 text-xs text-[#4f8cff] hover:underline">Clear the search</button>
       </div>
     )
   }
@@ -40,7 +40,7 @@ export default function SearchResults({
         <span className="text-[var(--color-text-secondary)]">
           {total} result{total > 1 ? 's' : ''} for <span className="font-mono text-[var(--color-text-primary)]">{query}</span>
         </span>
-        <button onClick={onClear} className="text-[#00d4ff] hover:underline">Clear</button>
+        <button onClick={onClear} className="text-[#4f8cff] hover:underline">Clear</button>
       </div>
 
       {matchedAlerts.length > 0 && (

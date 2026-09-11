@@ -35,7 +35,7 @@ function EventDrawer({ event, onClose }: { event: WazuhRawEvent; onClose: () => 
               {event.ruleDescription || 'Wazuh event'}
             </div>
             <div className="flex items-center gap-3 text-xs flex-wrap">
-              <span className="font-mono text-[#a855f7]">rule {event.ruleId || '—'}</span>
+              <span className="font-mono text-[#9c8bfb]">rule {event.ruleId || '—'}</span>
               <span className="text-[var(--color-text-muted)]">·</span>
               <span className="font-mono text-[var(--color-text-secondary)]">level {event.ruleLevel}</span>
               <span className="text-[var(--color-text-muted)]">·</span>
@@ -64,9 +64,9 @@ function EventDrawer({ event, onClose }: { event: WazuhRawEvent; onClose: () => 
             <div className="bg-[var(--color-background)] border border-[var(--color-border)] rounded-lg overflow-hidden">
               <div className="flex items-center gap-2 px-4 py-2 bg-[var(--color-surface)] border-b border-[var(--color-border)]">
                 <div className="flex gap-1.5">
-                  <div className="w-2.5 h-2.5 rounded-full bg-[#ef4444] opacity-60" />
-                  <div className="w-2.5 h-2.5 rounded-full bg-[#eab308] opacity-60" />
-                  <div className="w-2.5 h-2.5 rounded-full bg-[#22c55e] opacity-60" />
+                  <div className="w-2.5 h-2.5 rounded-full bg-[#fb4a63] opacity-60" />
+                  <div className="w-2.5 h-2.5 rounded-full bg-[#f2c94c] opacity-60" />
+                  <div className="w-2.5 h-2.5 rounded-full bg-[#30d18a] opacity-60" />
                 </div>
                 <span className="text-[10px] font-mono text-[var(--color-text-muted)] ml-2">{event.id}.json</span>
               </div>
@@ -138,7 +138,7 @@ export default function Events({
           <div className="flex flex-col items-center justify-center py-14 gap-2">
             <div className="text-sm text-[var(--color-text-primary)]">Unable to load events</div>
             <div className="text-xs text-[var(--color-info)]">Something went wrong while retrieving the event history.</div>
-            <button onClick={() => load(page)} className="mt-1 text-xs text-[#00d4ff] hover:underline">Retry</button>
+            <button onClick={() => load(page)} className="mt-1 text-xs text-[#4f8cff] hover:underline">Retry</button>
           </div>
         )}
 
@@ -169,13 +169,13 @@ export default function Events({
                     <td className="px-4 py-2.5 font-mono text-[var(--color-text-secondary)] whitespace-nowrap">{formatDateTime(ev.timestamp, timezone)}</td>
                     <td className="px-4 py-2.5 font-mono text-[var(--color-text-primary)] whitespace-nowrap">{ev.sourceIP}</td>
                     <td className="px-4 py-2.5">
-                      <span className="font-mono text-[#a855f7]">{ev.ruleId || '—'}</span>
+                      <span className="font-mono text-[#9c8bfb]">{ev.ruleId || '—'}</span>
                       <div className="text-[10px] text-[var(--color-info)] truncate max-w-[280px]">{ev.ruleDescription}</div>
                     </td>
                     <td className="px-4 py-2.5 text-[var(--color-text-secondary)] whitespace-nowrap">{ev.agentName || '—'}</td>
                     <td className="px-4 py-2.5 font-mono whitespace-nowrap">
                       {ev.alertId ? (
-                        <span className="text-[#00d4ff] group-hover:underline">{ev.alertId}</span>
+                        <span className="text-[#4f8cff] group-hover:underline">{ev.alertId}</span>
                       ) : (
                         <span className="text-[var(--color-text-muted)]">not converted</span>
                       )}

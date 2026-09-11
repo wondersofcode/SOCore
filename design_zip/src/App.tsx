@@ -140,7 +140,7 @@ function AppShell() {
           {visibleNavItems.map(item => {
             const active = screen === item.id
             const isSim = item.id === 'simulations'
-            const activeColor = isSim ? '#a855f7' : '#00d4ff'
+            const activeColor = isSim ? '#9c8bfb' : '#4f8cff'
             return (
               <button
                 key={item.id}
@@ -158,10 +158,10 @@ function AppShell() {
                 <span className="shrink-0" style={{ color: active ? activeColor : 'var(--color-text-muted)' }}>{item.icon}</span>
                 {!collapsed && <span className={active ? 'text-[var(--color-text-primary)]' : 'group-hover:text-[var(--color-text-secondary)] transition-colors'}>{item.label}</span>}
                 {!collapsed && item.id === 'approvals' && pending.length > 0 && (
-                  <span className="ml-auto text-[9px] font-mono font-bold bg-[#f9731625] text-[#f97316] border border-[#f9731640] rounded px-1.5 py-0.5">{pending.length}</span>
+                  <span className="ml-auto text-[9px] font-mono font-bold bg-[#ff9d4d25] text-[#ff9d4d] border border-[#ff9d4d40] rounded px-1.5 py-0.5">{pending.length}</span>
                 )}
                 {!collapsed && item.id === 'alerts' && (
-                  <span className="ml-auto text-[9px] font-mono font-bold bg-[#ef444425] text-[#ef4444] border border-[#ef444440] rounded px-1.5 py-0.5">{openAlertCount}</span>
+                  <span className="ml-auto text-[9px] font-mono font-bold bg-[#fb4a6325] text-[#fb4a63] border border-[#fb4a6340] rounded px-1.5 py-0.5">{openAlertCount}</span>
                 )}
               </button>
             )
@@ -190,11 +190,11 @@ function AppShell() {
           <div className="flex items-center gap-2 text-xs">
             <span className="text-[var(--color-text-muted)] font-mono">SOCore</span>
             <span className="text-[var(--color-border-bright)]">/</span>
-            <span className={`font-semibold ${isSimScreen ? 'text-[#a855f7]' : 'text-[var(--color-text-primary)]'}`}>{screenTitles[screen]}</span>
+            <span className={`font-semibold ${isSimScreen ? 'text-[#9c8bfb]' : 'text-[var(--color-text-primary)]'}`}>{screenTitles[screen]}</span>
             <span
               className="ml-2 text-[9px] font-mono px-1.5 py-0.5 rounded border"
               style={backendLive
-                ? { color: '#22c55e', borderColor: '#22c55e40', background: '#22c55e10' }
+                ? { color: '#30d18a', borderColor: '#30d18a40', background: '#30d18a10' }
                 : { color: 'var(--color-info)', borderColor: 'var(--color-border-bright)', background: 'transparent' }}
               title={backendLive ? 'Connected to the backend API' : 'Backend not reachable — showing sample data'}
             >
@@ -213,7 +213,7 @@ function AppShell() {
                 value={search}
                 onChange={e => setSearch(e.target.value)}
                 placeholder="Search alerts, IPs, techniques…"
-                className="w-full bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg pl-8 pr-3 py-1.5 text-xs text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] focus:outline-none focus:border-[#00d4ff40] font-mono transition-colors"
+                className="w-full bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg pl-8 pr-3 py-1.5 text-xs text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] focus:outline-none focus:border-[#4f8cff40] font-mono transition-colors"
               />
               <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[9px] font-mono text-[var(--color-border-bright)] border border-[var(--color-border)] rounded px-1">⌘K</span>
             </div>
@@ -228,12 +228,12 @@ function AppShell() {
               })}
               className="flex items-center gap-2 px-3 py-1.5 rounded-lg border transition-all text-[10px] font-semibold uppercase tracking-widest font-mono"
               style={{
-                background: isLive ? '#22c55e10' : '#6b728010',
-                borderColor: isLive ? '#22c55e40' : 'var(--color-border-bright)',
-                color: isLive ? '#22c55e' : 'var(--color-info)',
+                background: isLive ? '#30d18a10' : '#6b728010',
+                borderColor: isLive ? '#30d18a40' : 'var(--color-border-bright)',
+                color: isLive ? '#30d18a' : 'var(--color-info)',
               }}
             >
-              <span className={`w-2 h-2 rounded-full ${isLive ? 'bg-[#22c55e] pulse-live' : 'bg-[var(--color-info)]'}`} />
+              <span className={`w-2 h-2 rounded-full ${isLive ? 'bg-[#30d18a] pulse-live' : 'bg-[var(--color-info)]'}`} />
               {isLive ? 'Live' : 'Paused'}
             </button>
 
@@ -249,7 +249,7 @@ function AppShell() {
                   <path d="M7 15a2 2 0 004 0" />
                 </svg>
                 {pendingUserCount > 0 && (
-                  <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-0.5 bg-[#ef4444] rounded-full text-[9px] font-bold text-white flex items-center justify-center">
+                  <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-0.5 bg-[#fb4a63] rounded-full text-[9px] font-bold text-white flex items-center justify-center">
                     {pendingUserCount}
                   </span>
                 )}
@@ -259,16 +259,16 @@ function AppShell() {
             {/* User avatar */}
             <div className="flex items-center gap-2">
               {profile?.avatarUrl ? (
-                <img src={profile.avatarUrl} alt="" className="w-7 h-7 rounded-full object-cover border border-[#00d4ff40]" />
+                <img src={profile.avatarUrl} alt="" className="w-7 h-7 rounded-full object-cover border border-[#4f8cff40]" />
               ) : (
-                <div className="w-7 h-7 rounded-full bg-[#00d4ff20] border border-[#00d4ff40] flex items-center justify-center text-[10px] font-bold text-[#00d4ff] font-mono">
+                <div className="w-7 h-7 rounded-full bg-[#4f8cff20] border border-[#4f8cff40] flex items-center justify-center text-[10px] font-bold text-[#4f8cff] font-mono">
                   {(user?.email ?? '??').slice(0, 2).toUpperCase()}
                 </div>
               )}
               {!collapsed && <span className="text-xs text-[var(--color-text-secondary)]">{user?.email}</span>}
               <button
                 onClick={signOut}
-                className="text-[10px] text-[var(--color-info)] hover:text-[#ef4444] border border-[var(--color-border)] rounded-lg px-2 py-1 transition-colors"
+                className="text-[10px] text-[var(--color-info)] hover:text-[#fb4a63] border border-[var(--color-border)] rounded-lg px-2 py-1 transition-colors"
               >
                 Sign out
               </button>
@@ -281,7 +281,7 @@ function AppShell() {
           {/* Timestamp bar */}
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
-              <div className={`w-1.5 h-1.5 rounded-full ${isSimScreen ? 'bg-[#a855f7]' : 'bg-[#00d4ff]'} ${isLive ? 'pulse-live' : ''}`} />
+              <div className={`w-1.5 h-1.5 rounded-full ${isSimScreen ? 'bg-[#9c8bfb]' : 'bg-[#4f8cff]'} ${isLive ? 'pulse-live' : ''}`} />
               <span className="text-[10px] font-mono text-[var(--color-text-muted)]">
                 {isLive ? 'Last updated: ' : 'Paused at: '}
                 <span className="text-[var(--color-info)]">
@@ -297,13 +297,13 @@ function AppShell() {
                 <>
                   Queue depth: <span className="text-[var(--color-info)]">{openAlertCount} open</span>
                   <span className="mx-2 text-[var(--color-border)]">|</span>
-                  Oldest untriaged: <span className="text-[#f97316]">2h 41m</span>
+                  Oldest untriaged: <span className="text-[#ff9d4d]">2h 41m</span>
                 </>
               ) : (
                 <>
                   Retention window: <span className="text-[var(--color-info)]">90d</span>
                   <span className="mx-2 text-[var(--color-border)]">|</span>
-                  Ingestion rate: <span className={isSimScreen ? 'text-[#a855f7]' : 'text-[#00d4ff]'}>2,847 eps</span>
+                  Ingestion rate: <span className={isSimScreen ? 'text-[#9c8bfb]' : 'text-[#4f8cff]'}>2,847 eps</span>
                 </>
               )}
             </div>
@@ -354,7 +354,7 @@ function Gate() {
   if (loading) {
     return (
       <div className="h-screen flex items-center justify-center bg-[var(--color-background)]">
-        <div className="w-6 h-6 rounded-full border-2 border-[var(--color-border)] border-t-[#00d4ff] animate-spin" />
+        <div className="w-6 h-6 rounded-full border-2 border-[var(--color-border)] border-t-[#4f8cff] animate-spin" />
       </div>
     )
   }

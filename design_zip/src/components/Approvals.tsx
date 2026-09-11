@@ -11,7 +11,7 @@ function ApprovalCard({ alert, onSelectAlert }: { alert: Alert; onSelectAlert: (
   const action = alert.proposedAction!
 
   return (
-    <div className="bg-[var(--color-surface)] border border-[#f9731630] rounded-lg overflow-hidden">
+    <div className="bg-[var(--color-surface)] border border-[#ff9d4d30] rounded-lg overflow-hidden">
       {/* What the automation wants to do */}
       <div className="flex items-start gap-4 px-5 py-4">
         <RiskScore score={alert.riskScore} size="lg" />
@@ -30,9 +30,9 @@ function ApprovalCard({ alert, onSelectAlert }: { alert: Alert; onSelectAlert: (
             <span className="text-[var(--color-border-bright)]">·</span>
             <span>{alert.attackType}</span>
             <span className="text-[var(--color-border-bright)]">·</span>
-            <span className="font-mono text-[#a855f7]">{alert.mitreId}</span>
+            <span className="font-mono text-[#9c8bfb]">{alert.mitreId}</span>
             <span className="text-[var(--color-border-bright)]">·</span>
-            <button onClick={() => onSelectAlert(alert.id)} className="font-mono text-[#00d4ff] hover:underline">
+            <button onClick={() => onSelectAlert(alert.id)} className="font-mono text-[#4f8cff] hover:underline">
               {alert.id}
             </button>
           </div>
@@ -58,7 +58,7 @@ function ApprovalCard({ alert, onSelectAlert }: { alert: Alert; onSelectAlert: (
           value={reason}
           onChange={e => setReason(e.target.value)}
           placeholder="Reason for the decision (recorded in the audit trail)"
-          className="flex-1 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg px-3 py-1.5 text-xs text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] focus:outline-none focus:border-[#00d4ff40] transition-colors"
+          className="flex-1 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg px-3 py-1.5 text-xs text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] focus:outline-none focus:border-[#4f8cff40] transition-colors"
         />
         <button
           onClick={() => decide(alert.id, 'Rejected', reason || 'No reason given')}
@@ -68,7 +68,7 @@ function ApprovalCard({ alert, onSelectAlert }: { alert: Alert; onSelectAlert: (
         </button>
         <button
           onClick={() => decide(alert.id, 'Approved', reason || 'No reason given')}
-          className="px-4 py-1.5 rounded-lg bg-[#22c55e20] border border-[#22c55e50] text-xs font-semibold text-[#22c55e] hover:bg-[#22c55e30] transition-colors whitespace-nowrap"
+          className="px-4 py-1.5 rounded-lg bg-[#30d18a20] border border-[#30d18a50] text-xs font-semibold text-[#30d18a] hover:bg-[#30d18a30] transition-colors whitespace-nowrap"
         >
           Approve and run
         </button>
@@ -93,8 +93,8 @@ export default function Approvals({ onSelectAlert }: { onSelectAlert: (id: strin
           audit trail with the reason you give.
         </p>
         <div className="mt-3 flex items-center gap-5 text-[11px] font-mono">
-          <span className="text-[#f97316]">{pending.length} waiting on a human</span>
-          <span className="text-[#22c55e]">{autoHandled} handled automatically</span>
+          <span className="text-[#ff9d4d]">{pending.length} waiting on a human</span>
+          <span className="text-[#30d18a]">{autoHandled} handled automatically</span>
           <span className="text-[var(--color-text-secondary)]">{decisions.length} decided this session</span>
         </div>
       </div>
@@ -108,9 +108,9 @@ export default function Approvals({ onSelectAlert }: { onSelectAlert: (id: strin
         </div>
       ) : (
         <div className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg flex flex-col items-center justify-center py-14 gap-2">
-          <div className="w-10 h-10 rounded-full bg-[#22c55e15] border border-[#22c55e30] flex items-center justify-center">
+          <div className="w-10 h-10 rounded-full bg-[#30d18a15] border border-[#30d18a30] flex items-center justify-center">
             <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-              <path d="M4 9.5l3.5 3.5L14 6" stroke="#22c55e" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+              <path d="M4 9.5l3.5 3.5L14 6" stroke="#30d18a" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
           </div>
           <div className="text-sm text-[var(--color-text-primary)]">No actions are waiting</div>
@@ -134,11 +134,11 @@ export default function Approvals({ onSelectAlert }: { onSelectAlert: (id: strin
                 <div key={i} className="flex items-start gap-3 px-5 py-3">
                   <span
                     className="mt-0.5 w-1.5 h-1.5 rounded-full shrink-0"
-                    style={{ background: approved ? '#22c55e' : 'var(--color-info)' }}
+                    style={{ background: approved ? '#30d18a' : 'var(--color-info)' }}
                   />
                   <div className="flex-1 min-w-0 text-xs">
                     <div className="text-[var(--color-text-primary)]">
-                      <span style={{ color: approved ? '#22c55e' : 'var(--color-text-secondary)' }}>
+                      <span style={{ color: approved ? '#30d18a' : 'var(--color-text-secondary)' }}>
                         {approved ? 'Approved' : 'Rejected'}
                       </span>
                       {' — '}

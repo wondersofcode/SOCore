@@ -6,10 +6,10 @@ import { formatISODate } from '../lib/dateFormat'
 type TechStatus = 'detected' | 'partial' | 'none' | 'missed'
 
 const statusConfig: Record<TechStatus, { bg: string; border: string; label: string; dot: string }> = {
-  detected: { bg: '#22c55e18', border: '#22c55e40', label: 'Detected', dot: '#22c55e' },
-  partial: { bg: '#eab30818', border: '#eab30840', label: 'Partial', dot: '#eab308' },
+  detected: { bg: '#30d18a18', border: '#30d18a40', label: 'Detected', dot: '#30d18a' },
+  partial: { bg: '#f2c94c18', border: '#f2c94c40', label: 'Partial', dot: '#f2c94c' },
   none: { bg: 'var(--color-surface-2)', border: 'var(--color-border)', label: 'Not Tested', dot: 'var(--color-text-muted)' },
-  missed: { bg: '#ef444418', border: '#ef444440', label: 'Missed', dot: '#ef4444' },
+  missed: { bg: '#fb4a6318', border: '#fb4a6340', label: 'Missed', dot: '#fb4a63' },
 }
 
 interface TooltipState {
@@ -39,10 +39,10 @@ export default function MitreMatrix() {
           <h2 className="text-sm font-semibold text-[var(--color-text-primary)]">MITRE ATT&CK® Coverage Matrix</h2>
           <p className="text-xs text-[var(--color-info)] mt-0.5 font-mono">Enterprise v14 · Last updated {today}</p>
         </div>
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3 flex-wrap">
           {(Object.entries(statusConfig) as [TechStatus, typeof statusConfig[TechStatus]][]).map(([status, cfg]) => (
-            <div key={status} className="flex items-center gap-1.5 text-[10px] font-mono text-[var(--color-text-secondary)]">
-              <span className="w-2.5 h-2.5 rounded-sm inline-block" style={{ background: cfg.dot, opacity: 0.8 }} />
+            <div key={status} className="flex items-center gap-1.5 text-[10px] font-mono text-[var(--color-text-secondary)] bg-[var(--color-surface)] border border-[var(--color-border)] rounded-full px-2.5 py-1">
+              <span className="w-2 h-2 rounded-sm inline-block" style={{ background: cfg.dot, opacity: 0.9 }} />
               <span>{cfg.label}</span>
               <span className="text-[var(--color-text-muted)]">({counts[status] || 0})</span>
             </div>
@@ -51,28 +51,21 @@ export default function MitreMatrix() {
       </div>
 
       {/* Matrix */}
-      <div className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg overflow-hidden">
-        {/* Tactic headers */}
-        <div className="grid border-b border-[var(--color-border)]" style={{ gridTemplateColumns: `repeat(${mitreMatrix.length}, 1fr)` }}>
+      <div className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg overflow-x-auto">
+        <div className="min-w-max grid gap-2 p-4" style={{ gridTemplateColumns: `repeat(${mitreMatrix.length}, 150px)` }}>
           {mitreMatrix.map(tactic => (
-            <div key={tactic.id} className="px-3 py-3 border-r border-[var(--color-border)] last:border-r-0">
-              <div className="text-[10px] font-semibold uppercase tracking-widest text-[#00d4ff] truncate">{tactic.tactic}</div>
-              <div className="text-[9px] font-mono text-[var(--color-text-muted)] mt-0.5">{tactic.id}</div>
-            </div>
-          ))}
-        </div>
-
-        {/* Technique cells */}
-        <div className="grid" style={{ gridTemplateColumns: `repeat(${mitreMatrix.length}, 1fr)` }}>
-          {mitreMatrix.map(tactic => (
-            <div key={tactic.id} className="border-r border-[var(--color-border)] last:border-r-0">
+            <div key={tactic.id} className="flex flex-col gap-1.5">
+              <div className="pb-2 mb-1 border-b-2 border-[var(--color-border-bright)]">
+                <div className="text-[10px] font-semibold uppercase tracking-widest text-[#4f8cff] truncate">{tactic.tactic}</div>
+                <div className="text-[9px] font-mono text-[var(--color-text-muted)] mt-0.5">{tactic.id}</div>
+              </div>
               {tactic.techniques.map((tech) => {
                 const cfg = statusConfig[tech.status as TechStatus]
                 return (
                   <div
                     key={tech.id}
-                    className="px-2 py-2 border-b border-[var(--color-border)] last:border-b-0 cursor-pointer transition-all hover:brightness-125 hover:z-10 relative"
-                    style={{ background: cfg.bg, borderLeft: `2px solid ${cfg.border}` }}
+                    className="px-2.5 py-2 rounded-lg border cursor-pointer transition-all hover:brightness-125 hover:z-10 relative"
+                    style={{ background: cfg.bg, borderColor: cfg.border }}
                     onMouseEnter={e => {
                       const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
                       setTooltip({ id: tech.id, name: tech.name, status: tech.status as TechStatus, tactic: tactic.tactic, x: rect.right + 8, y: rect.top })
@@ -119,7 +112,7 @@ export default function MitreMatrix() {
           style={{ left: Math.min(tooltip.x, window.innerWidth - 220), top: tooltip.y }}
         >
           <div className="text-[10px] text-[var(--color-info)] mb-1 uppercase tracking-widest">{tooltip.tactic}</div>
-          <div className="font-mono text-[#a855f7] text-xs font-semibold">{tooltip.id}</div>
+          <div className="font-mono text-[#9c8bfb] text-xs font-semibold">{tooltip.id}</div>
           <div className="text-[var(--color-text-primary)] text-xs mt-1">{tooltip.name}</div>
           <div className="flex items-center gap-1.5 mt-2">
             <span className="w-2 h-2 rounded-full" style={{ background: statusConfig[tooltip.status].dot }} />

@@ -10,8 +10,8 @@ const ROLE_LABEL: Record<UserRole, string> = {
 }
 
 const STATUS_STYLE: Record<AdminUser['status'], { bg: string; text: string; label: string }> = {
-  pending: { bg: 'bg-[#f9731615]', text: 'text-[#f97316]', label: 'Pending' },
-  approved: { bg: 'bg-[#22c55e15]', text: 'text-[#22c55e]', label: 'Approved' },
+  pending: { bg: 'bg-[#ff9d4d15]', text: 'text-[#ff9d4d]', label: 'Pending' },
+  approved: { bg: 'bg-[#30d18a15]', text: 'text-[#30d18a]', label: 'Approved' },
   rejected: { bg: 'bg-[#6b728015]', text: 'text-[var(--color-info)]', label: 'Rejected' },
 }
 
@@ -72,7 +72,7 @@ export default function AdminPanel() {
         {!loading && error && (
           <div className="flex flex-col items-center justify-center py-14 gap-2">
             <div className="text-sm text-[var(--color-text-primary)]">Unable to load users</div>
-            <button onClick={load} className="mt-1 text-xs text-[#00d4ff] hover:underline">Retry</button>
+            <button onClick={load} className="mt-1 text-xs text-[#4f8cff] hover:underline">Retry</button>
           </div>
         )}
 
@@ -101,7 +101,7 @@ export default function AdminPanel() {
                           value={u.role}
                           disabled={busy}
                           onChange={e => withBusy(u.id, () => api.adminSetRole(u.id, e.target.value))}
-                          className="bg-[var(--color-background)] border border-[var(--color-border)] rounded px-2 py-1 text-[11px] text-[var(--color-text-primary)] focus:outline-none focus:border-[#00d4ff40] disabled:opacity-50"
+                          className="bg-[var(--color-background)] border border-[var(--color-border)] rounded px-2 py-1 text-[11px] text-[var(--color-text-primary)] focus:outline-none focus:border-[#4f8cff40] disabled:opacity-50"
                         >
                           {(Object.keys(ROLE_LABEL) as UserRole[]).map(r => (
                             <option key={r} value={r}>{ROLE_LABEL[r]}</option>
@@ -116,14 +116,14 @@ export default function AdminPanel() {
                             <button
                               disabled={busy}
                               onClick={() => withBusy(u.id, () => api.adminReject(u.id))}
-                              className="px-2.5 py-1 rounded border border-[var(--color-border-bright)] text-[var(--color-text-secondary)] hover:text-[#ef4444] hover:border-[#ef444440] transition-colors disabled:opacity-50"
+                              className="px-2.5 py-1 rounded border border-[var(--color-border-bright)] text-[var(--color-text-secondary)] hover:text-[#fb4a63] hover:border-[#fb4a6340] transition-colors disabled:opacity-50"
                             >
                               Reject
                             </button>
                             <button
                               disabled={busy}
                               onClick={() => withBusy(u.id, () => api.adminApprove(u.id))}
-                              className="px-2.5 py-1 rounded bg-[#22c55e20] border border-[#22c55e50] text-[#22c55e] font-semibold hover:bg-[#22c55e30] transition-colors disabled:opacity-50"
+                              className="px-2.5 py-1 rounded bg-[#30d18a20] border border-[#30d18a50] text-[#30d18a] font-semibold hover:bg-[#30d18a30] transition-colors disabled:opacity-50"
                             >
                               Approve
                             </button>
@@ -133,7 +133,7 @@ export default function AdminPanel() {
                           <button
                             disabled={busy}
                             onClick={() => withBusy(u.id, () => api.adminReject(u.id))}
-                            className="px-2.5 py-1 rounded border border-[var(--color-border-bright)] text-[var(--color-text-secondary)] hover:text-[#ef4444] hover:border-[#ef444440] transition-colors disabled:opacity-50"
+                            className="px-2.5 py-1 rounded border border-[var(--color-border-bright)] text-[var(--color-text-secondary)] hover:text-[#fb4a63] hover:border-[#fb4a6340] transition-colors disabled:opacity-50"
                           >
                             Revoke
                           </button>
@@ -142,7 +142,7 @@ export default function AdminPanel() {
                           <button
                             disabled={busy}
                             onClick={() => withBusy(u.id, () => api.adminApprove(u.id))}
-                            className="px-2.5 py-1 rounded bg-[#22c55e20] border border-[#22c55e50] text-[#22c55e] font-semibold hover:bg-[#22c55e30] transition-colors disabled:opacity-50"
+                            className="px-2.5 py-1 rounded bg-[#30d18a20] border border-[#30d18a50] text-[#30d18a] font-semibold hover:bg-[#30d18a30] transition-colors disabled:opacity-50"
                           >
                             Approve
                           </button>

@@ -19,7 +19,7 @@ from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 
-from . import actions, ai_explainer, assistant, auth, db, enrichment, report_export, shift_summary
+from . import actions, ai_explainer, assistant, auth, db, enrichment, integrations_health, report_export, shift_summary
 from .correlation import correlate
 from .models import (
     AddNoteRequest,
@@ -74,11 +74,15 @@ def _startup() -> None:
 # ── Health / status ─────────────────────────────────────────────────────────
 @app.get("/api/health")
 def health() -> dict:
+    connections = integrations_health.check()
+    connections["ai"] = {"connected": ai_explainer.is_live(), "url": None}
+    connections["caseManagement"] = {"connected": True, "url": None}
     return {
         "status": "ok",
         "aiLive": ai_explainer.is_live(),
         "alerts": len(store.all()),
         "pending": len(store.pending()),
+        "connections": connections,
     }
 
 

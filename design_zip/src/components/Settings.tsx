@@ -1,8 +1,9 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useStore } from '../store'
 import { useAuth } from '../lib/AuthContext'
 import { supabase } from '../lib/supabase'
 import { api } from '../api'
+import type { ConnectionStatus } from '../api'
 import type { UserRole } from '../data'
 import { POPULAR_TIMEZONES } from '../lib/dateFormat'
 
@@ -70,14 +71,14 @@ function ProfileCard() {
           {profile?.avatarUrl ? (
             <img src={profile.avatarUrl} alt="" className="w-16 h-16 rounded-full object-cover border border-[var(--color-border)]" />
           ) : (
-            <div className="w-16 h-16 rounded-full bg-[#00d4ff20] border border-[#00d4ff40] flex items-center justify-center text-lg font-bold text-[#00d4ff] font-mono">
+            <div className="w-16 h-16 rounded-full bg-[#4f8cff20] border border-[#4f8cff40] flex items-center justify-center text-lg font-bold text-[#4f8cff] font-mono">
               {initials}
             </div>
           )}
           <button
             onClick={() => fileInput.current?.click()}
             disabled={uploading}
-            className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-[var(--color-surface-2)] border border-[var(--color-border-bright)] flex items-center justify-center text-[var(--color-text-secondary)] hover:text-[#00d4ff] transition-colors disabled:opacity-50"
+            className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-[var(--color-surface-2)] border border-[var(--color-border-bright)] flex items-center justify-center text-[var(--color-text-secondary)] hover:text-[#4f8cff] transition-colors disabled:opacity-50"
             title="Change avatar"
           >
             <svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round">
@@ -94,7 +95,7 @@ function ProfileCard() {
               <input
                 value={firstName}
                 onChange={e => { setFirstName(e.target.value); setSaved(false) }}
-                className="w-full bg-[var(--color-background)] border border-[var(--color-border)] rounded px-2.5 py-1.5 text-xs text-[var(--color-text-primary)] focus:outline-none focus:border-[#00d4ff40]"
+                className="w-full bg-[var(--color-background)] border border-[var(--color-border)] rounded px-2.5 py-1.5 text-xs text-[var(--color-text-primary)] focus:outline-none focus:border-[#4f8cff40]"
               />
             </div>
             <div>
@@ -102,7 +103,7 @@ function ProfileCard() {
               <input
                 value={lastName}
                 onChange={e => { setLastName(e.target.value); setSaved(false) }}
-                className="w-full bg-[var(--color-background)] border border-[var(--color-border)] rounded px-2.5 py-1.5 text-xs text-[var(--color-text-primary)] focus:outline-none focus:border-[#00d4ff40]"
+                className="w-full bg-[var(--color-background)] border border-[var(--color-border)] rounded px-2.5 py-1.5 text-xs text-[var(--color-text-primary)] focus:outline-none focus:border-[#4f8cff40]"
               />
             </div>
           </div>
@@ -110,12 +111,12 @@ function ProfileCard() {
             <button
               onClick={saveName}
               disabled={saving}
-              className="px-3 py-1.5 rounded-lg bg-[#00d4ff15] border border-[#00d4ff40] text-[#00d4ff] text-[11px] font-semibold hover:bg-[#00d4ff25] transition-colors disabled:opacity-50"
+              className="px-3 py-1.5 rounded-lg bg-[#4f8cff15] border border-[#4f8cff40] text-[#4f8cff] text-[11px] font-semibold hover:bg-[#4f8cff25] transition-colors disabled:opacity-50"
             >
               {saving ? 'Saving…' : saved ? 'Saved ✓' : 'Save changes'}
             </button>
             {uploading && <span className="text-[11px] text-[var(--color-text-muted)]">Uploading avatar…</span>}
-            {error && <span className="text-[11px] text-[#ef4444]">{error}</span>}
+            {error && <span className="text-[11px] text-[#fb4a63]">{error}</span>}
           </div>
         </div>
       </div>
@@ -172,7 +173,7 @@ function ThemeCard() {
               disabled={busy}
               className="px-3.5 py-1.5 rounded-md text-[11px] font-semibold capitalize transition-colors disabled:opacity-60"
               style={theme === opt
-                ? { background: '#00d4ff20', color: '#00d4ff' }
+                ? { background: '#4f8cff20', color: '#4f8cff' }
                 : { color: 'var(--color-text-secondary)' }}
             >
               {opt}
@@ -185,13 +186,13 @@ function ThemeCard() {
             value={timezone}
             onChange={e => setTimezone(e.target.value)}
             disabled={tzBusy}
-            className="bg-[var(--color-background)] border border-[var(--color-border)] rounded-lg px-2.5 py-1.5 text-[11px] font-semibold text-[var(--color-text-primary)] focus:outline-none focus:border-[#00d4ff40] disabled:opacity-60"
+            className="bg-[var(--color-background)] border border-[var(--color-border)] rounded-lg px-2.5 py-1.5 text-[11px] font-semibold text-[var(--color-text-primary)] focus:outline-none focus:border-[#4f8cff40] disabled:opacity-60"
           >
             {POPULAR_TIMEZONES.map(tz => (
               <option key={tz.value} value={tz.value}>{tz.label}</option>
             ))}
           </select>
-          {tzError && <span className="text-[10px] text-[#ef4444]">Could not save — try again.</span>}
+          {tzError && <span className="text-[10px] text-[#fb4a63]">Could not save — try again.</span>}
         </div>
       </div>
     </div>
@@ -199,35 +200,38 @@ function ThemeCard() {
 }
 
 interface Integration {
+  key: string
   name: string
   role: string
   stage: 'Detect' | 'Enrich' | 'Respond' | 'Track'
-  connected: boolean
   detail: string
   endpoint: string
 }
 
-// Mirrors the real SOCore stack. Endpoints point at the VM (35.238.92.96) where each service is deployed.
+// Mirrors the real SOCore stack. `connected`/`url` come from GET /api/health's
+// `connections` field (real TCP reachability checks against the VM), not a
+// hardcoded guess — see backend/app/integrations_health.py.
 const integrations: Integration[] = [
-  { name: 'Wazuh', role: 'SIEM and endpoint agents', stage: 'Detect', connected: false, detail: 'Not yet integrated — Şəxs 1-dən inteqrasiya gözlənilir', endpoint: 'wazuh.socore.local:55000' },
-  { name: 'MISP', role: 'Threat intelligence database', stage: 'Enrich', connected: true, detail: 'Feodo Tracker, URLhaus and Spamhaus DROP synced 4h ago', endpoint: '35.238.92.96:8443' },
-  { name: 'Cortex', role: 'Analyzer engine', stage: 'Enrich', connected: true, detail: 'VirusTotal and AbuseIPDB analyzers enabled', endpoint: '35.238.92.96:9001' },
-  { name: 'Case Management', role: 'Built-in case tracking', stage: 'Track', connected: true, detail: 'In-house — replaces TheHive (commercial license required)', endpoint: 'backend/api/cases' },
-  { name: 'Shuffle', role: 'Playbook automation', stage: 'Respond', connected: true, detail: '4 playbooks, firewall actions run in simulation mode', endpoint: '35.238.92.96:3001' },
-  { name: 'Slack', role: 'Analyst notifications', stage: 'Respond', connected: true, detail: 'Posting to #socore-alerts', endpoint: 'hooks.slack.com/services/…' },
-  { name: 'AI explanation service', role: 'Alert reasoning', stage: 'Enrich', connected: false, detail: 'Summarises correlated signals for each alert', endpoint: 'backend/api/explain' },
+  { key: 'wazuh', name: 'Wazuh', role: 'SIEM and endpoint agents', stage: 'Detect', detail: 'Manager + dashboard on the VM, agents enrolled on port 1515', endpoint: '35.238.92.96:5601' },
+  { key: 'misp', name: 'MISP', role: 'Threat intelligence database', stage: 'Enrich', detail: 'Feodo Tracker, URLhaus and Spamhaus DROP feeds', endpoint: '35.238.92.96:8443' },
+  { key: 'cortex', name: 'Cortex', role: 'Analyzer engine', stage: 'Enrich', detail: 'VirusTotal and AbuseIPDB analyzers enabled', endpoint: '35.238.92.96:9001' },
+  { key: 'caseManagement', name: 'Case Management', role: 'Built-in case tracking', stage: 'Track', detail: 'In-house — replaces TheHive (commercial license required)', endpoint: 'backend/api/cases' },
+  { key: 'shuffle', name: 'Shuffle', role: 'Playbook automation', stage: 'Respond', detail: 'Firewall actions run in simulation mode', endpoint: '35.238.92.96:3001' },
+  { key: 'slack', name: 'Slack', role: 'Analyst notifications', stage: 'Respond', detail: 'Posts alert/decision notifications to the configured channel', endpoint: 'hooks.slack.com/services/…' },
+  { key: 'ai', name: 'AI explanation service', role: 'Alert reasoning + assistant', stage: 'Enrich', detail: 'Groq — summarises correlated signals, powers the AI assistant', endpoint: 'backend/api/assistant/chat' },
 ]
 
 const stageColor: Record<Integration['stage'], string> = {
-  Detect: '#00d4ff', Enrich: '#a855f7', Respond: '#f97316', Track: '#22c55e',
+  Detect: '#4f8cff', Enrich: '#9c8bfb', Respond: '#ff9d4d', Track: '#30d18a',
 }
 
-function Row({ i }: { i: Integration }) {
+function Row({ i, status, canOpenTool }: { i: Integration; status: ConnectionStatus | undefined; canOpenTool: boolean }) {
+  const connected = status?.connected ?? false
   return (
     <div className="flex items-center gap-4 px-5 py-3.5 border-b border-[var(--color-border)] last:border-0">
       <span
         className="w-2 h-2 rounded-full shrink-0"
-        style={{ background: i.connected ? '#22c55e' : 'var(--color-info)' }}
+        style={{ background: connected ? '#30d18a' : 'var(--color-info)' }}
       />
       <div className="w-44 shrink-0">
         <div className="text-sm text-[var(--color-text-primary)]">{i.name}</div>
@@ -243,22 +247,34 @@ function Row({ i }: { i: Integration }) {
         <div className="text-xs text-[var(--color-text-secondary)] truncate">{i.detail}</div>
         <div className="text-[10px] font-mono text-[var(--color-text-muted)] truncate">{i.endpoint}</div>
       </div>
-      <span className="text-[11px] shrink-0" style={{ color: i.connected ? '#22c55e' : 'var(--color-info)' }}>
-        {i.connected ? 'Connected' : 'Not configured'}
+      <span className="text-[11px] shrink-0" style={{ color: connected ? '#30d18a' : 'var(--color-info)' }}>
+        {connected ? 'Connected' : 'Not reachable'}
       </span>
+      {connected && status?.url && canOpenTool && (
+        <a
+          href={status.url}
+          target="_blank"
+          rel="noreferrer"
+          className="text-[11px] font-semibold shrink-0 px-2.5 py-1 rounded-lg border border-[#4f8cff40] text-[#4f8cff] hover:bg-[#4f8cff15] transition-colors"
+        >
+          Open tool →
+        </a>
+      )}
     </div>
   )
 }
 
 export default function Settings() {
-  const { currentUser, aiLive } = useStore()
+  const { currentUser } = useStore()
   const { role } = useAuth()
+  const [connections, setConnections] = useState<Record<string, ConnectionStatus>>({})
+  const canOpenTool = role === 'l2_analyst' || role === 'admin'
 
-  // Every row is static except the AI explanation service, whose connection
-  // state reflects whether the backend actually has a live Groq key.
-  const rows = integrations.map(i =>
-    i.name === 'AI explanation service' ? { ...i, connected: aiLive } : i,
-  )
+  useEffect(() => {
+    api.health().then(h => setConnections(h.connections ?? {})).catch(() => {})
+  }, [])
+
+  const connectedCount = integrations.filter(i => connections[i.key]?.connected).length
 
   return (
     <div className="space-y-4 max-w-4xl">
@@ -271,10 +287,12 @@ export default function Settings() {
         <div className="px-5 py-3 border-b border-[var(--color-border)] flex items-center justify-between">
           <span className="text-xs font-semibold text-[var(--color-text-primary)]">Pipeline connections</span>
           <span className="text-[10px] font-mono text-[var(--color-text-muted)]">
-            {rows.filter(i => i.connected).length} of {rows.length} connected
+            {connectedCount} of {integrations.length} connected
           </span>
         </div>
-        {rows.map(i => <Row key={i.name} i={i} />)}
+        {integrations.map(i => (
+          <Row key={i.key} i={i} status={connections[i.key]} canOpenTool={canOpenTool} />
+        ))}
       </div>
 
       <div className="grid grid-cols-2 gap-3">
@@ -286,7 +304,7 @@ export default function Settings() {
                 <div className="text-[var(--color-text-primary)]">Approval threshold</div>
                 <div className="text-[11px] text-[var(--color-info)]">Actions above this risk score wait for a human</div>
               </div>
-              <span className="font-mono text-[#f97316] shrink-0">70</span>
+              <span className="font-mono text-[#ff9d4d] shrink-0">70</span>
             </div>
             <div className="flex items-start justify-between gap-4">
               <div>
@@ -300,7 +318,7 @@ export default function Settings() {
                 <div className="text-[var(--color-text-primary)]">Notifications</div>
                 <div className="text-[11px] text-[var(--color-info)]">Sent without approval for every severity</div>
               </div>
-              <span className="font-mono text-[#22c55e] shrink-0">Automatic</span>
+              <span className="font-mono text-[#30d18a] shrink-0">Automatic</span>
             </div>
           </div>
         </div>
@@ -318,7 +336,7 @@ export default function Settings() {
             </div>
             <div className="flex items-center justify-between">
               <span className="text-[var(--color-text-secondary)]">Can approve actions</span>
-              <span className="text-[#22c55e]">Yes</span>
+              <span className="text-[#30d18a]">Yes</span>
             </div>
             <div className="flex items-center justify-between">
               <span className="text-[var(--color-text-secondary)]">Log retention</span>
