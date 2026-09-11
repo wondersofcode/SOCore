@@ -54,6 +54,7 @@ export const api = {
   // event becomes, so an analyst can inspect what actually arrived.
   events: (limit = 50, offset = 0) => req<WazuhRawEvent[]>(`/api/events?limit=${limit}&offset=${offset}`),
   event: (id: string) => req<WazuhRawEvent>(`/api/events/${id}`),
+  eventsCount: () => req<{ count: number }>('/api/events/count'),
 
   // Admin: registration approval + role management
   adminPendingCount: () => req<{ count: number }>('/api/admin/pending-count'),

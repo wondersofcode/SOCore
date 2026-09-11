@@ -1,10 +1,23 @@
+import { useEffect, useMemo, useState } from 'react'
 import {
   AreaChart, Area, BarChart, Bar, XAxis, YAxis,
   CartesianGrid, Tooltip, ResponsiveContainer,
 } from 'recharts'
 import { StatCard, SeverityBadge, AlertStatusPill, Panel, PanelHeader, RiskBadge } from './Shared'
 import { riskTrendData, attackTypeData } from '../data'
+import type { WazuhRawEvent } from '../data'
 import { useStore } from '../store'
+import { api } from '../api'
+
+function formatDuration(ms: number): string {
+  const totalSeconds = Math.max(0, Math.round(ms / 1000))
+  if (totalSeconds < 60) return `${totalSeconds}s`
+  const minutes = Math.floor(totalSeconds / 60)
+  const seconds = totalSeconds % 60
+  if (minutes < 60) return `${minutes}:${String(seconds).padStart(2, '0')}`
+  const hours = Math.floor(minutes / 60)
+  return `${hours}h ${minutes % 60}m`
+}
 
 // ── Detection Pipeline Node ─────────────────────────────────────────────────
 function PipelineNode({ label, count, color, delay = 0 }: { label: string; count: number; color: string; delay?: number }) {
@@ -71,8 +84,8 @@ function RiskGauge({ score }: { score: number }) {
         <div className="text-[10px] uppercase tracking-widest" style={{ color }}>
           {score >= 75 ? 'Critical' : score >= 50 ? 'Elevated' : score >= 25 ? 'Moderate' : 'Low'}
         </div>
-        <div className="mt-1 flex items-center gap-1 text-xs font-mono text-[#ef4444]">
-          <span>↑</span><span>+12 vs 1h ago</span>
+        <div className="mt-1 text-[10px] font-mono text-[var(--color-text-muted)]">
+          Avg across open alerts
         </div>
       </div>
     </div>
@@ -105,9 +118,71 @@ function KanbanCard({ id, title, severity }: { id: string; title: string; severi
 
 // ── Main Dashboard ───────────────────────────────────────────────────────────
 export default function Dashboard({ onSelectAlert, onOpenQueue, onOpenApprovals }: { onSelectAlert: (id: string) => void; onOpenQueue: () => void; onOpenApprovals: () => void }) {
-  const { alerts, pending } = useStore()
+  const { alerts, cases, pending, live } = useStore()
   // The dashboard shows only the newest slice — full triage lives on the Alerts queue.
   const recent = [...alerts].sort((a, b) => b.timestamp.localeCompare(a.timestamp)).slice(0, 5)
+  const openAlerts = alerts.filter(a => a.status !== 'Resolved')
+
+  // System Risk Score — real average across every open (non-Resolved) alert.
+  const riskScore = openAlerts.length
+    ? Math.round(openAlerts.reduce((sum, a) => sum + a.riskScore, 0) / openAlerts.length)
+    : 0
+
+  // Raw event history — only the Dashboard needs the total count and the
+  // createdAt timestamps (for time-to-detect below), so it fetches its own
+  // copy rather than adding events to the global poller everything else uses.
+  const [events, setEvents] = useState<WazuhRawEvent[]>([])
+  const [eventsTotal, setEventsTotal] = useState<number | null>(null)
+  useEffect(() => {
+    if (!live) return
+    let cancelled = false
+    Promise.all([api.events(200), api.eventsCount()])
+      .then(([evs, count]) => { if (!cancelled) { setEvents(evs); setEventsTotal(count.count) } })
+      .catch(() => { /* backend went away; keep whatever we last had */ })
+    return () => { cancelled = true }
+  }, [live])
+
+  // Detection Pipeline — real counts, not sample data.
+  const pipelineDetect = eventsTotal ?? 0
+  const pipelineEnrich = alerts.filter(a => !!a.enrichedAt).length
+  const pipelineRespond = alerts.filter(a => a.status === 'Responding').length
+  const pipelineTrack = cases.filter(c => c.status === 'Closed' || c.status === 'Contained').length
+
+  // Avg Time-to-Detect — the real elapsed time between a raw event landing
+  // (events.createdAt) and the alert it produced landing (alerts.createdAt).
+  // `timestamp`/`detectedAt` can't be used for this: both are copied
+  // verbatim from the source event by the correlation engine, so they're
+  // always identical and would show a meaningless flat 0.
+  const mttd = useMemo(() => {
+    const eventById = new Map(events.map(e => [e.id, e]))
+    const samples: { ms: number; at: number }[] = []
+    for (const a of alerts) {
+      if (!a.sourceEventId || !a.createdAt) continue
+      const ev = eventById.get(a.sourceEventId)
+      if (!ev?.createdAt) continue
+      const evAt = new Date(ev.createdAt).getTime()
+      const alAt = new Date(a.createdAt).getTime()
+      if (!Number.isFinite(evAt) || !Number.isFinite(alAt) || alAt < evAt) continue
+      samples.push({ ms: alAt - evAt, at: alAt })
+    }
+    if (samples.length === 0) return { value: '—', trend: undefined }
+
+    const avg = (xs: { ms: number }[]) => xs.reduce((s, x) => s + x.ms, 0) / xs.length
+    const value = formatDuration(avg(samples))
+
+    const DAY = 86_400_000
+    const now = Date.now()
+    const last7 = samples.filter(s => now - s.at < 7 * DAY)
+    const prev7 = samples.filter(s => now - s.at >= 7 * DAY && now - s.at < 14 * DAY)
+    let trend: { direction: 'up' | 'down'; label: string; positive: boolean } | undefined
+    if (last7.length > 0 && prev7.length > 0) {
+      const avgLast = avg(last7), avgPrev = avg(prev7)
+      const pct = avgPrev > 0 ? Math.round((Math.abs(avgLast - avgPrev) / avgPrev) * 100) : 0
+      const faster = avgLast <= avgPrev
+      trend = { direction: faster ? 'down' : 'up', label: `${faster ? '-' : '+'}${pct}% this week`, positive: faster }
+    }
+    return { value, trend }
+  }, [alerts, events])
 
   return (
     <div className="space-y-4">
@@ -134,24 +209,24 @@ export default function Dashboard({ onSelectAlert, onOpenQueue, onOpenApprovals 
         <StatCard
           icon={<svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="9" cy="9" r="7" /><path d="M9 5v4l3 2" strokeLinecap="round" /></svg>}
           label="Avg Time-to-Detect"
-          value="4:32"
-          trend={{ direction: 'down', label: '-1:14 this week', positive: true }}
+          value={mttd.value}
+          trend={mttd.trend}
           accent="#00d4ff"
         />
-        <RiskGauge score={81} />
+        <RiskGauge score={riskScore} />
       </div>
 
       {/* Detection Pipeline */}
       <Panel>
         <PanelHeader title="Detection Pipeline" />
         <div className="px-6 py-5 flex items-center gap-0">
-          <PipelineNode label="Detect" count={23} color="#00d4ff" />
+          <PipelineNode label="Detect" count={pipelineDetect} color="#00d4ff" />
           <FlowArrow active />
-          <PipelineNode label="Enrich" count={11} color="#a855f7" delay={200} />
+          <PipelineNode label="Enrich" count={pipelineEnrich} color="#a855f7" delay={200} />
           <FlowArrow active />
-          <PipelineNode label="Respond" count={8} color="#f97316" delay={400} />
+          <PipelineNode label="Respond" count={pipelineRespond} color="#f97316" delay={400} />
           <FlowArrow active />
-          <PipelineNode label="Track" count={5} color="#22c55e" delay={600} />
+          <PipelineNode label="Track" count={pipelineTrack} color="#22c55e" delay={600} />
         </div>
       </Panel>
 
@@ -249,22 +324,15 @@ export default function Dashboard({ onSelectAlert, onOpenQueue, onOpenApprovals 
         </button>
       </Panel>
 
-      {/* Mini Kanban */}
+      {/* Mini Kanban — grouped from the real /api/cases data */}
       <Panel>
         <PanelHeader title="Case Status Board" />
         <div className="grid grid-cols-3 gap-3 p-4">
           {(['New', 'In Progress', 'Resolved'] as const).map(col => {
-            const colCases = [
-              { id: 'CASE-2024-0038', title: 'Anomalous Admin Account Activity', severity: 'High' },
-              { id: 'CASE-2024-0037', title: 'Lateral Movement via SMB', severity: 'High' },
-              { id: 'CASE-2024-0042', title: 'Coordinated SSH Brute Force', severity: 'Critical' },
-              { id: 'CASE-2024-0041', title: 'Suspected C2 Callback — WKSTN-088', severity: 'Critical' },
-              { id: 'CASE-2024-0040', title: 'Phishing Email — Credential Harvesting', severity: 'High' },
-              { id: 'CASE-2024-0039', title: 'Internal Port Sweep — DMZ Segment', severity: 'Medium' },
-            ].filter((_, i) =>
-              col === 'New' ? i < 2 :
-              col === 'In Progress' ? i >= 2 && i < 5 :
-              i >= 5
+            const colCases = cases.filter(c =>
+              col === 'New' ? c.status === 'Open' :
+              col === 'In Progress' ? c.status === 'Investigating' :
+              c.status === 'Closed' || c.status === 'Contained'
             )
             const colColors = { New: '#00d4ff', 'In Progress': '#f97316', Resolved: '#22c55e' }
             return (
@@ -274,7 +342,9 @@ export default function Dashboard({ onSelectAlert, onOpenQueue, onOpenApprovals 
                   <span className="text-[10px] font-mono text-[var(--color-text-muted)]">({colCases.length})</span>
                 </div>
                 <div className="space-y-2">
-                  {colCases.map(c => <KanbanCard key={c.id} {...c} />)}
+                  {colCases.length === 0
+                    ? <div className="text-[11px] text-[var(--color-text-muted)] italic px-1 py-2">No cases</div>
+                    : colCases.map(c => <KanbanCard key={c.id} id={c.id} title={c.title} severity={c.severity} />)}
                 </div>
               </div>
             )

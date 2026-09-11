@@ -66,6 +66,10 @@ export interface Alert {
   sources: EnrichmentSource[]
   /** The raw Wazuh event this alert was scored from, if any (seed alerts have none). */
   sourceEventId?: string | null
+  /** DB insert time — paired with the source event's createdAt, the real
+   *  elapsed ingest/enrich/explain time. Empty for older rows written before
+   *  this column was exposed. */
+  createdAt?: string
 }
 
 /** A raw, unscored Wazuh event — recorded independently of whatever Alert it becomes. */
@@ -81,6 +85,8 @@ export interface WazuhRawEvent {
   agentName: string
   /** Set once the correlation engine turns this event into an Alert. Not every event is. */
   alertId: string | null
+  /** DB insert time — see Alert.createdAt. */
+  createdAt?: string
 }
 
 /** Alert fields authored by hand; the rest are derived below. */

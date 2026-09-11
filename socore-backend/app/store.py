@@ -30,6 +30,18 @@ from .models import (
 )
 
 
+def _iso(value) -> str:
+    """Render a DB timestamp as real ISO 8601 (with 'T', not a space) so
+    `new Date(...)` on the frontend parses it reliably — psycopg2 hands back
+    a `datetime`, and `str()` on that produces a space-separated format most
+    browsers don't parse consistently."""
+    if value is None:
+        return ""
+    if isinstance(value, datetime):
+        return value.isoformat()
+    return str(value)
+
+
 def _row_to_alert(row: dict) -> Alert:
     return Alert(
         id=row["id"],
@@ -56,6 +68,7 @@ def _row_to_alert(row: dict) -> Alert:
         approvalStatus=row["approval_status"],
         sources=row["sources"] or [],
         sourceEventId=row.get("source_event_id"),
+        createdAt=_iso(row.get("created_at")),
     )
 
 
@@ -71,6 +84,7 @@ def _row_to_event(row: dict) -> Event:
         agentId=row["agent_id"] or "",
         agentName=row["agent_name"] or "",
         alertId=row["alert_id"],
+        createdAt=_iso(row.get("created_at")),
     )
 
 
@@ -85,7 +99,7 @@ def _row_to_profile(row: dict) -> Profile:
         role=row["role"],
         status=row["status"],
         themePreference=row.get("theme_preference") or "dark",
-        createdAt=str(row["created_at"]) if row.get("created_at") else "",
+        createdAt=_iso(row.get("created_at")),
     )
 
 

@@ -272,6 +272,13 @@ def list_events(limit: int = 50, offset: int = 0) -> list[Event]:
     return store.all_events(limit=limit, offset=offset)
 
 
+@app.get("/api/events/count")
+def events_count() -> dict:
+    """Total raw event count — the Dashboard's Detection Pipeline needs the
+    real total, not just one paginated page of /api/events."""
+    return {"count": store.count_events()}
+
+
 @app.get("/api/events/{event_id}", response_model=Event)
 def get_event(event_id: str) -> Event:
     event = store.get_event(event_id)

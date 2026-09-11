@@ -99,11 +99,16 @@ export function StatCard({ icon, label, value, trend, accent = '#00d4ff', glow }
       <div className="absolute inset-x-0 top-0 h-px" style={{ background: `linear-gradient(90deg, transparent, ${accent}60, transparent)` }} />
       <div className="flex items-start justify-between mb-3">
         <div className="text-[var(--color-text-secondary)] text-xs uppercase tracking-widest font-semibold">{label}</div>
-        <div style={{ color: accent }} className="opacity-70">{icon}</div>
+        <div
+          className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 [&_svg]:w-[18px] [&_svg]:h-[18px]"
+          style={{ background: `${accent}18`, color: accent }}
+        >
+          {icon}
+        </div>
       </div>
       <div className="text-3xl font-bold text-[var(--color-text-primary)] tracking-tight font-mono">{value}</div>
       {trend && (
-        <div className={`mt-2 flex items-center gap-1 text-xs font-mono ${trend.direction === 'up' ? (trend.positive ? 'text-[#22c55e]' : 'text-[#ef4444]') : (trend.positive ? 'text-[#ef4444]' : 'text-[#22c55e]')}`}>
+        <div className={`mt-2 flex items-center gap-1 text-xs font-mono ${trend.positive ? 'text-[#22c55e]' : 'text-[#ef4444]'}`}>
           <span>{trend.direction === 'up' ? '↑' : '↓'}</span>
           <span>{trend.label}</span>
         </div>

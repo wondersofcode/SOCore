@@ -96,6 +96,10 @@ class Event(BaseModel):
     agentId: str = ""
     agentName: str = ""
     alertId: Optional[str] = None
+    # When this row was actually inserted (DB clock, not the Wazuh-reported
+    # `timestamp`) — the honest signal for "how long did ingestion take",
+    # since `timestamp` is copied verbatim from the source event.
+    createdAt: str = ""
 
 
 # ── The alert object the dashboard consumes ─────────────────────────────────
@@ -126,6 +130,11 @@ class Alert(BaseModel):
     # The raw Wazuh event this alert was scored from, if any (seed/mock
     # alerts have none). Lets the dashboard link back to the untouched event.
     sourceEventId: Optional[str] = None
+    # When this row was actually inserted (DB clock). Paired with the source
+    # event's own createdAt, this is the real elapsed time the ingest/enrich/
+    # explain pipeline took for this alert — unlike `timestamp`/`detectedAt`,
+    # which are both copied from the same source string and never differ.
+    createdAt: str = ""
 
 
 # ── Case management (replaces TheHive) ──────────────────────────────────────
