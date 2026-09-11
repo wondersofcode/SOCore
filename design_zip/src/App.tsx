@@ -18,6 +18,7 @@ import Landing from './pages/Landing'
 import { StoreProvider, useStore } from './store'
 import { AuthProvider, useAuth } from './lib/AuthContext'
 import { api } from './api'
+import { formatDateTime } from './lib/dateFormat'
 
 type Screen = 'dashboard' | 'events' | 'alerts' | 'approvals' | 'cases' | 'simulations' | 'attack' | 'reports' | 'admin' | 'settings'
 
@@ -78,11 +79,12 @@ function AppShell() {
   const [screen, setScreen] = useState<Screen>('dashboard')
   const [collapsed, setCollapsed] = useState(false)
   const [isLive, setIsLive] = useState(true)
+  const [pausedAt, setPausedAt] = useState<string | null>(null)
   const [selectedAlertId, setSelectedAlertId] = useState<string | null>(null)
   const [preselectEventId, setPreselectEventId] = useState<string | null>(null)
   const [search, setSearch] = useState('')
 
-  const { alerts, pending, live: backendLive, aiLive } = useStore()
+  const { alerts, pending, live: backendLive, aiLive, lastFetchedAt } = useStore()
   const { user, role, profile, signOut } = useAuth()
   const openAlertCount = alerts.filter(a => a.status !== 'Resolved').length
   const query = search.trim().toLowerCase()
@@ -220,7 +222,10 @@ function AppShell() {
           <div className="ml-auto flex items-center gap-4">
             {/* Live indicator */}
             <button
-              onClick={() => setIsLive(l => !l)}
+              onClick={() => setIsLive(l => {
+                if (l) setPausedAt(new Date().toISOString())
+                return !l
+              })}
               className="flex items-center gap-2 px-3 py-1.5 rounded-lg border transition-all text-[10px] font-semibold uppercase tracking-widest font-mono"
               style={{
                 background: isLive ? '#22c55e10' : '#6b728010',
@@ -279,7 +284,12 @@ function AppShell() {
               <div className={`w-1.5 h-1.5 rounded-full ${isSimScreen ? 'bg-[#a855f7]' : 'bg-[#00d4ff]'} ${isLive ? 'pulse-live' : ''}`} />
               <span className="text-[10px] font-mono text-[var(--color-text-muted)]">
                 {isLive ? 'Last updated: ' : 'Paused at: '}
-                <span className="text-[var(--color-info)]">2024-01-18 09:42:17 UTC</span>
+                <span className="text-[var(--color-info)]">
+                  {formatDateTime(
+                    isLive ? (lastFetchedAt ?? new Date().toISOString()) : (pausedAt ?? new Date().toISOString()),
+                    profile?.timezone,
+                  )}
+                </span>
               </span>
             </div>
             <div className="text-[10px] font-mono text-[var(--color-text-muted)]">

@@ -21,6 +21,8 @@ interface Store {
   /** True when data is coming from the backend, false when using seeded mock. */
   live: boolean
   aiLive: boolean
+  /** ISO timestamp of the last successful fetch/poll from the backend (null until the first one lands). */
+  lastFetchedAt: string | null
 
   // Case management (in-house replacement for TheHive)
   cases: Case[]
@@ -39,6 +41,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const [decisions, setDecisions] = useState<Decision[]>([])
   const [live, setLive] = useState(false)
   const [aiLive, setAiLive] = useState(false)
+  const [lastFetchedAt, setLastFetchedAt] = useState<string | null>(null)
   const [caseList, setCaseList] = useState<Case[]>(seedCases)
   const { user } = useAuth()
   const currentUser = user?.email ?? 'Unassigned'
@@ -64,6 +67,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         })))
         setLive(true)
         setAiLive(health.aiLive)
+        setLastFetchedAt(new Date().toISOString())
         // Poll for new alerts every 5s so live Wazuh events show up.
         timer = setInterval(async () => {
           try {
@@ -75,6 +79,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
               alertId: d.alertId, status: d.status as Decision['status'],
               by: d.by, at: d.at, reason: d.reason,
             })))
+            setLastFetchedAt(new Date().toISOString())
           } catch { /* backend went away; keep last known data */ }
         }, 5000)
       } catch {
@@ -163,10 +168,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   const value = useMemo<Store>(
     () => ({
-      alerts, decisions, pending, decide, currentUser, live, aiLive,
+      alerts, decisions, pending, decide, currentUser, live, aiLive, lastFetchedAt,
       cases: caseList, createCase, updateCaseStatus, addCaseNote, toggleCaseTask,
     }),
-    [alerts, decisions, pending, decide, live, aiLive, caseList, createCase, updateCaseStatus, addCaseNote, toggleCaseTask],
+    [alerts, decisions, pending, decide, live, aiLive, lastFetchedAt, caseList, createCase, updateCaseStatus, addCaseNote, toggleCaseTask],
   )
 
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>
