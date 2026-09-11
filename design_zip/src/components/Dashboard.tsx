@@ -37,74 +37,68 @@ function formatDuration(ms: number): string {
   return `${hours}h ${minutes % 60}m`
 }
 
-// ── Detection Pipeline Node ─────────────────────────────────────────────────
-function PipelineNode({ label, count, color, delay = 0 }: { label: string; count: number; color: string; delay?: number }) {
+// ── Pipeline stage (Incident-Pipeline style: header + bar + real example chips) ──
+function PipelineStage({ label, count, max, color, chips, last }: { label: string; count: number; max: number; color: string; chips: string[]; last?: boolean }) {
+  const pct = max > 0 ? Math.round((count / max) * 100) : 0
   return (
-    <div className="flex flex-col items-center gap-2">
-      <div
-        className="relative w-20 h-20 rounded-full border-2 flex flex-col items-center justify-center"
-        style={{ borderColor: color, boxShadow: `0 0 20px ${color}30, inset 0 0 20px ${color}10` }}
-      >
-        <div className="absolute inset-0 rounded-full opacity-10" style={{ background: color }} />
-        <span className="text-2xl font-bold font-mono" style={{ color }}>{count}</span>
+    <>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center justify-between mb-2.5">
+          <span className="text-[11.5px] uppercase tracking-wider font-bold" style={{ color }}>{label}</span>
+          <span className="font-mono text-[22px] font-extrabold text-[var(--color-text-primary)] leading-none">{count}</span>
+        </div>
+        <div className="h-[5px] rounded-full bg-[var(--color-surface-2)] overflow-hidden mb-3">
+          <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, background: color }} />
+        </div>
+        <div className="flex flex-col gap-1.5">
+          {chips.length === 0
+            ? <div className="text-[10.5px] text-[var(--color-text-muted)] italic">None right now</div>
+            : chips.map((c, i) => (
+              <div key={i} className="bg-[var(--color-surface-2)] border border-[var(--color-border)] rounded-lg px-2.5 py-1.5 text-[11px] font-semibold text-[var(--color-text-primary)] truncate">
+                {c}
+              </div>
+            ))}
+        </div>
       </div>
-      <span className="text-[10px] uppercase tracking-widest text-[var(--color-text-secondary)] font-semibold">{label}</span>
-    </div>
-  )
-}
-
-function FlowArrow({ active }: { active?: boolean }) {
-  return (
-    <div className="flex-1 flex items-center justify-center gap-0.5 pb-6">
-      {[0, 1, 2, 3].map((i) => (
-        <div
-          key={i}
-          className="h-px flex-1"
-          style={{
-            background: '#4f8cff',
-            opacity: active ? (0.2 + i * 0.2) : 0.15,
-            animation: active ? `flow-pulse 1.5s ease-in-out ${i * 0.2}s infinite` : 'none',
-          }}
-        />
-      ))}
-      <svg width="10" height="10" viewBox="0 0 10 10" className="shrink-0" style={{ marginLeft: -4 }}>
-        <path d="M1 5H9M6 2L9 5L6 8" stroke="#4f8cff" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" opacity={0.6} />
-      </svg>
-    </div>
+      {!last && (
+        <div className="flex items-center px-1.5 text-[var(--color-border-bright)] shrink-0 self-start mt-[7px]">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M2 7h10M8 3l4 4-4 4" />
+          </svg>
+        </div>
+      )}
+    </>
   )
 }
 
 // ── Risk Gauge ───────────────────────────────────────────────────────────────
+// Matches the SOCore Command Center artifact's posture-panel gauge exactly:
+// a full-circle gradient ring (orange -> red) via stroke-dasharray/dashoffset,
+// centered number + status word, no card chrome — it sits directly on the
+// posture panel's own background.
 function RiskGauge({ score }: { score: number }) {
-  const angle = -135 + (score / 100) * 270
-  const color = score >= 75 ? '#fb4a63' : score >= 50 ? '#ff9d4d' : score >= 25 ? '#f2c94c' : '#30d18a'
+  const r = 52
+  const circumference = 2 * Math.PI * r
+  const offset = circumference * (1 - Math.max(0, Math.min(100, score)) / 100)
+  const label = score >= 75 ? 'Critical' : score >= 50 ? 'Elevated' : score >= 25 ? 'Moderate' : 'Low'
   return (
-    <div className="relative bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg p-4 overflow-hidden hover:border-[var(--color-border-bright)] transition-colors">
-      <div className="absolute inset-x-0 top-0 h-px" style={{ background: `linear-gradient(90deg, transparent, ${color}60, transparent)` }} />
-      <div className="text-[var(--color-text-secondary)] text-xs uppercase tracking-widest font-semibold mb-3">System Risk Score</div>
-      <div className="flex flex-col items-center gap-1">
-        <svg width="100" height="60" viewBox="0 0 100 60">
-          {/* Track */}
-          <path d="M 10 55 A 40 40 0 0 1 90 55" fill="none" stroke="var(--color-border)" strokeWidth="6" strokeLinecap="round" />
-          {/* Fill */}
-          <path d="M 10 55 A 40 40 0 0 1 90 55" fill="none" stroke={color} strokeWidth="6" strokeLinecap="round"
-            strokeDasharray={`${(score / 100) * 125.6} 125.6`} opacity={0.8} />
-          {/* Needle */}
-          <g transform={`translate(50 55) rotate(${angle})`}>
-            <line x1="0" y1="0" x2="0" y2="-28" stroke={color} strokeWidth="2" strokeLinecap="round" />
-            <circle cx="0" cy="0" r="3" fill={color} />
-          </g>
-          {/* Labels */}
-          <text x="8" y="58" fill="var(--color-text-muted)" fontSize="8" fontFamily="JetBrains Mono">0</text>
-          <text x="86" y="58" fill="var(--color-text-muted)" fontSize="8" fontFamily="JetBrains Mono">100</text>
-        </svg>
-        <div className="text-3xl font-bold font-mono" style={{ color }}>{score}</div>
-        <div className="text-[10px] uppercase tracking-widest" style={{ color }}>
-          {score >= 75 ? 'Critical' : score >= 50 ? 'Elevated' : score >= 25 ? 'Moderate' : 'Low'}
-        </div>
-        <div className="mt-1 text-[10px] font-mono text-[var(--color-text-muted)]">
-          Avg across open alerts
-        </div>
+    <div className="relative shrink-0" style={{ width: 132, height: 132 }}>
+      <svg viewBox="0 0 120 120" width="132" height="132">
+        <circle cx="60" cy="60" r={r} fill="none" stroke="var(--color-surface-2)" strokeWidth="10" />
+        <circle
+          cx="60" cy="60" r={r} fill="none" stroke="url(#riskGaugeGrad)" strokeWidth="10" strokeLinecap="round"
+          strokeDasharray={circumference} strokeDashoffset={offset} transform="rotate(-90 60 60)"
+        />
+        <defs>
+          <linearGradient id="riskGaugeGrad" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stopColor="#ff9d4d" />
+            <stop offset="100%" stopColor="#fb4a63" />
+          </linearGradient>
+        </defs>
+      </svg>
+      <div className="absolute inset-0 flex flex-col items-center justify-center">
+        <span className="font-mono font-extrabold leading-none text-[var(--color-text-primary)]" style={{ fontSize: 32 }}>{score}</span>
+        <span className="text-[9.5px] uppercase tracking-[0.1em] text-[var(--color-text-muted)] mt-1">{label}</span>
       </div>
     </div>
   )
@@ -207,11 +201,19 @@ export default function Dashboard({ onSelectAlert, onOpenQueue, onOpenApprovals 
     return () => { cancelled = true }
   }, [live])
 
-  // Detection Pipeline — real counts, not sample data.
+  // Detection Pipeline — real counts and real example items, not sample data.
   const pipelineDetect = eventsTotal ?? 0
-  const pipelineEnrich = alerts.filter(a => !!a.enrichedAt).length
-  const pipelineRespond = alerts.filter(a => a.status === 'Responding').length
-  const pipelineTrack = cases.filter(c => c.status === 'Closed' || c.status === 'Contained').length
+  const pipelineEnrichAlerts = alerts.filter(a => !!a.enrichedAt)
+  const pipelineRespondAlerts = alerts.filter(a => a.status === 'Responding')
+  const pipelineTrackCases = cases.filter(c => c.status === 'Closed' || c.status === 'Contained')
+  const pipelineEnrich = pipelineEnrichAlerts.length
+  const pipelineRespond = pipelineRespondAlerts.length
+  const pipelineTrack = pipelineTrackCases.length
+  const pipelineMax = Math.max(1, pipelineDetect, pipelineEnrich, pipelineRespond, pipelineTrack)
+  const detectChips = events.slice(0, 2).map(e => e.ruleDescription || e.sourceIP)
+  const enrichChips = pipelineEnrichAlerts.slice(0, 2).map(a => `${a.attackType} — ${a.sourceIP}`)
+  const respondChips = pipelineRespondAlerts.slice(0, 2).map(a => `${a.attackType} — ${a.sourceIP}`)
+  const trackChips = pipelineTrackCases.slice(0, 2).map(c => c.title)
 
   // Avg Time-to-Detect — the real elapsed time between a raw event landing
   // (events.createdAt) and the alert it produced landing (alerts.createdAt).
@@ -335,14 +337,11 @@ export default function Dashboard({ onSelectAlert, onOpenQueue, onOpenApprovals 
       {/* Detection Pipeline */}
       <Panel>
         <PanelHeader title="Detection Pipeline" />
-        <div className="px-6 py-5 flex items-center gap-0">
-          <PipelineNode label="Detect" count={pipelineDetect} color="#4f8cff" />
-          <FlowArrow active />
-          <PipelineNode label="Enrich" count={pipelineEnrich} color="#9c8bfb" delay={200} />
-          <FlowArrow active />
-          <PipelineNode label="Respond" count={pipelineRespond} color="#ff9d4d" delay={400} />
-          <FlowArrow active />
-          <PipelineNode label="Track" count={pipelineTrack} color="#30d18a" delay={600} />
+        <div className="p-4 flex items-stretch gap-0">
+          <PipelineStage label="Detect" count={pipelineDetect} max={pipelineMax} color="#4f8cff" chips={detectChips} />
+          <PipelineStage label="Enrich" count={pipelineEnrich} max={pipelineMax} color="#9c8bfb" chips={enrichChips} />
+          <PipelineStage label="Respond" count={pipelineRespond} max={pipelineMax} color="#ff9d4d" chips={respondChips} />
+          <PipelineStage label="Track" count={pipelineTrack} max={pipelineMax} color="#30d18a" chips={trackChips} last />
         </div>
       </Panel>
 
