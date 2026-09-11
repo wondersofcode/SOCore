@@ -5,7 +5,7 @@
 <h1 align="center">SOCore</h1>
 
 <p align="center">
-  <b>Real Wazuh alertlərini anında AI-dəstəkli qərarlara çevirən, human-in-the-loop bir SOC platforması.</b>
+  <b>An end-to-end SOC (Security Operations Center) platform that turns real Wazuh alerts into AI-backed, human-in-the-loop decisions.</b>
 </p>
 
 <p align="center">
@@ -25,70 +25,112 @@
 
 ---
 
-## Nə edir
+## Table of contents
 
-SOCore, real bir Wazuh SIEM-dən gələn hadisələri qəbul edən, onları risk səviyyəsinə görə skorlayan, süni intellektlə izah edən və analitikə "təsdiqlə/rədd et" qərarı verən uçdan-uca bir SOC (Security Operations Center) platformasıdır. Məqsəd, klassik SIEM-lərin doldurduğu boşluğu — xam alert selini mənalı, hərəkətə keçirilə bilən siqnala çevirmək — kiçik miqyasda, amma real infrastruktur üzərində göstərməkdir.
+- [What it does](#what-it-does)
+- [Architecture](#architecture)
+- [Features](#features)
+- [Tech stack](#tech-stack)
+- [Project structure](#project-structure)
+- [Setup](#setup)
+  - [1. Supabase (database + auth)](#1-supabase-database--auth)
+  - [2. Backend](#2-backend)
+  - [3. Frontend](#3-frontend)
+  - [4. External services (MISP / Cortex / Shuffle / Wazuh)](#4-external-services-misp--cortex--shuffle--wazuh)
+  - [5. Wiring Wazuh to the backend](#5-wiring-wazuh-to-the-backend)
+- [Environment variables reference](#environment-variables-reference)
+- [API reference](#api-reference)
+- [Deployment](#deployment)
+- [Team](#team)
 
-Zəncir belə işləyir: **Detect → Enrich → Respond → Track**. Wazuh manager-ə düşən hər hadisə (real Windows agent-dən *və* özü-monitorinq edən VM-in öz Linux agent-indən) əvvəlcə xam şəkildə (`Event`) saxlanılır, sonra MISP (threat intel) və Cortex/VirusTotal/AbuseIPDB (reputasiya analizi) ilə zənginləşdirilir, Groq ilə insan dilində izah alır və risk skoru ilə bir `Alert`-ə çevrilir. Yüksək riskli alertlər analitikin təsdiqini gözləyən bir cavab tədbiri (Human-in-the-Loop) təklif edir; təsdiqlənən/rədd edilən hər qərar audit trail-də izlənir, lazım gəldikdə isə Shuffle üzərindən SOAR avtomatlaşdırmasına ötürülür.
+## What it does
 
-Bu bir demo/mock UI deyil — arxada real Wazuh manager, real Supabase Postgres verilənlər bazası və real GCP VM üzərində işləyən bir backend var. Canlı demoya buradan bax: **[socore.tech](https://socore.tech)**
+SOCore ingests events from a real Wazuh SIEM, scores them by risk, explains them in plain language with AI, and hands the analyst an approve/reject decision — an end-to-end SOC platform meant to demonstrate, on real infrastructure (not a mock), the gap most classic SIEMs leave open: turning a raw stream of alerts into something an analyst can actually act on.
 
-## Arxitektura
+The pipeline is **Detect → Enrich → Respond → Track**:
+
+1. **Detect** — Wazuh (a real Windows agent *and* a Linux agent monitoring the SOCore VM itself — SSH logins, system events) raises an event; the manager forwards it to the backend, which stores it as a raw `Event` first, independent of whatever it becomes.
+2. **Enrich** — the source IP is checked against MISP (threat intel IOCs) and run through Cortex's VirusTotal/AbuseIPDB analyzers; a correlation engine combines all of that into a risk score and turns the event into a scored `Alert`.
+3. **Respond** — Groq writes a plain-language explanation of why the alert was flagged. Alerts above the risk threshold propose a response action and wait for an analyst's approval (Human-in-the-Loop) before anything runs; every decision is written to an audit trail. High-risk alerts are also handed to Shuffle for SOAR automation.
+4. **Track** — approved/rejected alerts, cases, and the full raw event history stay queryable from the dashboard for as long as the retention window holds.
+
+This is not a demo/mock UI — there's a real Wazuh manager, a real Supabase Postgres database, and a real backend running on a GCP VM behind it. Live demo: **[socore.tech](https://socore.tech)**
+
+## Architecture
 
 ```mermaid
 flowchart LR
     WinAgent["Windows Agent\n(Wazuh agent)"] --> Manager["Wazuh Manager"]
-    VMAgent["VM-in öz Linux agent-i\n(self-monitoring)"] --> Manager
+    VMAgent["VM's own Linux agent\n(self-monitoring)"] --> Manager
     Manager -->|"custom-socore-integration.py"| Backend["SOCore Backend\n(FastAPI)"]
     Backend --> DB[("Supabase\nPostgres")]
     Backend <--> MISP["MISP\n(Threat Intel)"]
     Backend <--> Cortex["Cortex\nVirusTotal / AbuseIPDB"]
-    Backend --> Groq["Groq\n(izah + AI assistant + shift summary)"]
-    Backend -->|"yüksək risk"| Shuffle["Shuffle\n(SOAR workflow)"]
+    Backend --> Groq["Groq\n(explanations + AI assistant + shift summary)"]
+    Backend -->|"high risk"| Shuffle["Shuffle\n(SOAR workflow)"]
     Backend <--> Dashboard["Dashboard\n(React, Nginx)"]
     Dashboard <--> Auth["Supabase Auth\n(l1 / l2 / admin)"]
 ```
 
-Wazuh manager hər hadisəni `custom-socore-integration.py` skripti ilə backend-in `/api/ingest` endpoint-inə göndərir. Backend hadisəni əvvəlcə xam (`events` cədvəli), sonra skorlanmış (`alerts` cədvəli) formada Postgres-də saxlayır; dashboard isə bu API-lardan real vaxtda oxuyur. Backend həmçinin `GET /api/health` üzərindən Wazuh/MISP/Cortex/Shuffle/Slack-a real TCP əlçatanlıq yoxlaması edir — Settings səhifəsindəki "Pipeline connections" siyahısı hardcoded deyil, bu yoxlamaların canlı nəticəsidir.
+The Wazuh manager forwards every event to the backend's `/api/ingest` via `custom-socore-integration.py`. The backend persists it raw first (`events` table), then — once scored — as an `Alert` (`alerts` table) in Postgres; the dashboard reads both from the API in real time. The backend also does live TCP reachability checks against Wazuh/MISP/Cortex/Shuffle/Slack via `GET /api/health` — the "Pipeline connections" / "System Health" panels in the dashboard reflect that real check, not a hardcoded flag.
 
-## Texnologiya stack-i
+## Features
 
-| Qat | Texnologiyalar |
+- **Real Wazuh integration, from two sources** — a genuine Windows agent *and* a second Wazuh agent monitoring the SOCore VM itself (SSH logins, system events), both flowing through the exact same pipeline and noise filtering
+- **AI-generated alert explanations** — every alert gets a plain-language explanation from Groq, grounded in the alert's own data (MITRE technique, VirusTotal/AbuseIPDB scores, correlation risk score) — never invented
+- **AI Assistant chat** — a floating chat widget on the Dashboard that answers an analyst's question using Groq, grounded in a snapshot of the *current real* alerts/cases/pending-approvals (sent as context on every request, so it can't hallucinate an alert that doesn't exist)
+- **AI Shift Summary + Excel export** — a Groq-written shift recap for an 8/12/24-hour window on the Reports page (5-minute cache), plus a one-click export of that same window as a full Excel workbook: an Executive Summary sheet (KPI cards, charts, the AI text) and Alerts/Cases/Events/Decisions detail sheets, built with `openpyxl` — real Excel Tables, frozen header rows, severity/status color coding, no formulas (so no `#REF!`/`#VALUE!` risk)
+- **Human-in-the-Loop approval flow** — alerts above the risk threshold wait for an analyst's approve/reject before any response action runs; every decision is written to an audit trail
+- **Real threat intelligence** — MISP IOC lookups and Cortex's VirusTotal/AbuseIPDB analyzers enrich every alert with real reputation data
+- **SOAR automation** — high-risk alerts are automatically handed to a Shuffle workflow
+- **Case management** (in-house, replaces TheHive) — a Kanban board (Open / Investigating / Contained / Closed) with notes, tasks, and linked alerts
+- **MITRE ATT&CK coverage matrix** — a live grid of which techniques have actually been detected, derived from real alert data
+- **3-tier role-based access** — Supabase Auth with `l1_analyst` / `l2_analyst` / `admin`; some actions (e.g. jumping directly into a connected integration's own UI) are gated to L2/Admin; new signups wait for admin approval before they can use the app
+- **Per-user timezone** — every analyst picks their own IANA timezone; every alert/event/case/report timestamp renders in it, not a hardcoded UTC
+- **Persistent storage** — every event, alert, and case lives in Supabase Postgres, survives restarts
+- **A separate Event/Alert model** — the raw form of every Wazuh event (`Event`) is tracked independently of whatever scored result it produced (`Alert`), so nothing is silently discarded even if it didn't clear the alert threshold
+- **Live Pipeline Connections / System Health** — every integration's (Wazuh/MISP/Cortex/Shuffle/Slack) "connected" badge is a real TCP reachability check against the actual service, not a static flag
+
+## Tech stack
+
+| Layer | Technologies |
 |---|---|
-| **Backend** | FastAPI, Python 3, Supabase (Postgres), Groq (AI izah, chat, shift summary) |
+| **Backend** | FastAPI, Python 3, Supabase (Postgres), Groq (AI explanations, chat, shift summary), openpyxl (Excel export) |
 | **Frontend** | React 19, Vite, TypeScript, Tailwind CSS |
-| **SIEM / Threat Intel / SOAR** | Wazuh (manager + 2 agent), MISP, Cortex (VirusTotal, AbuseIPDB), Shuffle |
-| **Auth** | Supabase Auth (3 rol: `l1_analyst` / `l2_analyst` / `admin`, qeydiyyat təsdiqi ilə) |
-| **İnfrastruktur** | Google Cloud Platform (GCP), Nginx, Let's Encrypt |
+| **SIEM / Threat Intel / SOAR** | Wazuh (manager + 2 agents), MISP, Cortex (VirusTotal, AbuseIPDB analyzers), Shuffle |
+| **Auth** | Supabase Auth (3 roles: `l1_analyst` / `l2_analyst` / `admin`, with registration approval) |
+| **Infrastructure** | Google Cloud Platform (GCP), Nginx, Let's Encrypt |
 
-## Əsas xüsusiyyətlər
-
-- **Real Wazuh inteqrasiyası, iki mənbədən** — Windows agent *və* VM-in özünü izləyən Linux agent (SSH girişləri, sistem hadisələri), hər ikisi eyni pipeline-dan keçir
-- **AI-generated alert izahları** — hər alert Groq ilə insan dilində, risk skorunu əsaslandıran izahla gəlir (VirusTotal/AbuseIPDB skorları ilə birlikdə)
-- **AI Assistant chat** — Dashboard-da üzən bir chat widget, cari alert/case/approval data-sına əsaslanaraq analitikin sualına Groq ilə cavab verir (uydurma deyil — real data context-i kimi göndərilir)
-- **AI Shift Summary + Excel export** — Reports səhifəsində 8/12/24 saatlıq pəncərə üçün Groq-un yazdığı növbə xülasəsi (5 dəqiqəlik keş ilə), yanında tam bir SOC hesabatı olaraq Excel-ə (Overview + KPI-lar + qrafiklər + Alerts/Cases/Events/Decisions vərəqləri) ixrac düyməsi
-- **Human-in-the-Loop təsdiq axını** — yüksək riskli alertlər analitikin təsdiqini gözləyir, hər qərar audit trail-ə yazılır
-- **Real threat intelligence + analiz** — MISP (IOC axtarışı) və Cortex üzərindən VirusTotal/AbuseIPDB analizi
-- **SOAR avtomatlaşdırması** — yüksək riskli alertlər Shuffle workflow-una avtomatik ötürülür
-- **3-səviyyəli rol-əsaslı giriş** — Supabase Auth ilə `l1_analyst` / `l2_analyst` / `admin`; bəzi funksiyalar (məs. inteqrasiya alətinə birbaşa keçid) yalnız L2/Admin-ə açıqdır; yeni qeydiyyatlar admin təsdiqini gözləyir
-- **Şəxsi saat qurşağı** — hər istifadəçi öz saat qurşağını seçir, bütün alert/event/case vaxtları ona görə göstərilir
-- **Persistent verilənlər bazası** — bütün events/alerts/cases Supabase Postgres-də saxlanılır, restart-da itmir
-- **Ayrı Event/Alert modeli** — hər Wazuh hadisəsinin xam forması (`Event`) skorlanmış nəticədən (`Alert`) ayrıca izlənir
-- **Canlı Pipeline Connections / System Health** — hər inteqrasiyanın (Wazuh/MISP/Cortex/Shuffle/Slack) "connected" statusu real TCP yoxlaması ilə göstərilir, hardcoded deyil
-
-## Layihə strukturu
+## Project structure
 
 ```
 SOCore/
-├── socore-backend/     # FastAPI backend — ingest, korrelyasiya, AI izah/chat/summary, Excel export, API
-├── design_zip/         # React + TypeScript dashboard (frontend)
-├── wazuh-integration/  # Wazuh manager → backend inteqrasiya script-i
-└── docs/               # Sənədləşdirmə (quraşdırma checklist-i və s.)
+├── socore-backend/     # FastAPI backend — ingest, correlation, AI (explain/chat/summary), Excel export, API
+│   ├── app/             # Application code (main.py has the full route list)
+│   ├── requirements.txt
+│   ├── .env.example
+│   └── supabase_migration_profiles.sql   # Run this in Supabase's SQL editor before first use
+├── design_zip/          # React + TypeScript dashboard (frontend)
+├── wazuh-integration/   # Wazuh manager -> backend integration script
+└── docs/                # Documentation (external-service setup checklist, etc.)
 ```
 
-## Quraşdırma
+## Setup
 
-### Backend
+You'll need: Python 3.11+, Node 18+, a free [Supabase](https://supabase.com) project, and a [Groq](https://console.groq.com) API key at minimum. MISP/Cortex/Shuffle/Wazuh are optional — every integration that isn't configured degrades gracefully (mock/skip mode) rather than crashing the app.
+
+### 1. Supabase (database + auth)
+
+1. Create a project at [supabase.com](https://supabase.com).
+2. Open **SQL Editor** and run the contents of [`socore-backend/supabase_migration_profiles.sql`](socore-backend/supabase_migration_profiles.sql) — this creates the `profiles` table, the trigger that auto-creates a profile on signup, the role/status/theme/timezone columns and their constraints, and the storage policies for avatar uploads. It's idempotent, safe to re-run.
+3. Under **Storage**, create a public bucket named `avatars` (the SQL above sets its access policies, but the bucket itself has to be created from the dashboard).
+4. Grab your connection details from **Settings → API** (`Project URL`, `anon`/`publishable` key) and **Settings → Database** (`Direct connection string`) — you'll need them below.
+5. After you sign up once through the app, promote yourself to admin directly in SQL:
+   ```sql
+   update public.profiles set role = 'admin', status = 'approved' where email = 'you@example.com';
+   ```
+
+### 2. Backend
 
 ```bash
 cd socore-backend
@@ -96,50 +138,79 @@ python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 
 cp .env.example .env
-# .env-də DATABASE_URL (Supabase), GROQ_API_KEY, MISP/CORTEX/SHUFFLE
-# dəyərlərini doldur (boş qalsa müvafiq funksiyalar mock/skip rejimində işləyir)
+# Fill in DATABASE_URL and SUPABASE_URL at minimum (see the reference table
+# below) — the app won't authenticate anyone without SUPABASE_URL, and won't
+# persist anything without DATABASE_URL. Everything else is optional.
 
 uvicorn app.main:app --reload --port 8000
 ```
 
-API sənədləşdirməsi: `http://localhost:8000/docs`
+Interactive API docs: `http://localhost:8000/docs` — every endpoint is testable from there without writing a client.
 
-### Frontend
+### 3. Frontend
 
 ```bash
 cd design_zip
 npm install
 
-# design_zip/.env faylı yarat:
+# Create design_zip/.env:
 #   VITE_API_URL=http://localhost:8000
-#   VITE_SUPABASE_URL=<Supabase layihə URL-i>
-#   VITE_SUPABASE_ANON_KEY=<Supabase publishable/anon key>
+#   VITE_SUPABASE_URL=<your Supabase project URL>
+#   VITE_SUPABASE_ANON_KEY=<your Supabase publishable/anon key>
 
 npm run dev
 ```
 
-Backend işləmirsə dashboard nümunə (seed) data ilə açılır — yəni backend olmadan da UI-ı sınaya bilərsən.
+If the backend isn't reachable, the dashboard falls back to seeded sample data automatically — you can explore the whole UI without it running, though nothing will persist and AI/integration features won't have anything real to work with.
 
-### Tələb olunan xarici xidmətlər
+### 4. External services (MISP / Cortex / Shuffle / Wazuh)
 
-Platforma tam işləmək üçün aşağıdakı xarici xidmətlərə ehtiyac duyur:
+These are optional but needed for the full pipeline (threat intel enrichment, SOAR automation, and a real event source) to actually do something. Step-by-step instructions for standing each of them up and getting their API keys: **[docs/SETUP-CHECKLIST.md](docs/SETUP-CHECKLIST.md)**.
 
-- **Supabase** — Postgres verilənlər bazası + Auth (l1/l2/admin rolları)
-- **Groq API key** — AI alert izahları, chat assistant və shift summary üçün ([console.groq.com](https://console.groq.com/keys))
-- **Wazuh manager** — real SIEM hadisə mənbəyi
-- **MISP** — threat intelligence (IOC axtarışı)
-- **Cortex** — VirusTotal/AbuseIPDB analizatorları
-- **Shuffle** — SOAR workflow avtomatlaşdırması
+### 5. Wiring Wazuh to the backend
 
-Hər birinin necə quraşdırılıb API key alınacağı addım-addım: **[docs/SETUP-CHECKLIST.md](docs/SETUP-CHECKLIST.md)**
+See [`wazuh-integration/README.md`](wazuh-integration/README.md) for the manager-side integration script, the `ossec.conf` block that wires it up, and the noise-filtering logic that keeps things like a fresh agent's SCA compliance scan from flooding the dashboard.
 
-## Komanda
+If you don't have a live Wazuh manager yet, you can still exercise the whole pipeline by POSTing directly to `/api/ingest` in the shape documented in [`socore-backend/README.md`](socore-backend/README.md#wiring-up-wazuh).
 
-Layihə 4 nəfərlik komanda tərəfindən aparılır:
+## Environment variables reference
 
-| Rol | Məsuliyyət |
+**Backend** (`socore-backend/.env`, see `.env.example` for the annotated version):
+
+| Variable | Required | What it's for |
+|---|---|---|
+| `DATABASE_URL` | **Yes** | Supabase's direct Postgres connection string. Without it, nothing persists. |
+| `SUPABASE_URL` | **Yes** | Your Supabase project's base URL, used to verify auth JWTs. Without it, every authenticated endpoint returns 500. |
+| `GROQ_API_KEY` | Recommended | Powers alert explanations, the AI assistant chat, and shift summaries. Without it, those fall back to a deterministic template instead of a real AI call. |
+| `PUBLIC_HOST` | No | Your own VM's public IP/host, used to build the "Open tool" links in `/api/health`'s connection checks (Wazuh dashboard, MISP, Cortex, Shuffle). Defaults to the demo VM's IP. |
+| `SLACK_WEBHOOK_URL` | No | Incoming webhook URL for alert/decision notifications. Skipped silently if unset. |
+| `MISP_URL`, `MISP_API_KEY`, `MISP_VERIFY_SSL` | No | MISP threat-intel lookups. Skipped if unset. |
+| `CORTEX_URL`, `CORTEX_API_KEY` | No | Cortex VirusTotal/AbuseIPDB analyzers. Skipped if unset. |
+| `SHUFFLE_WEBHOOK_URL` | No | The specific workflow's webhook-trigger URL (not the base Shuffle URL) for high-risk alerts. Skipped if unset. |
+
+**Frontend** (`design_zip/.env`):
+
+| Variable | Required | What it's for |
+|---|---|---|
+| `VITE_API_URL` | **Yes** | Base URL of the backend (e.g. `http://localhost:8000` or `https://api.yourdomain.com`). |
+| `VITE_SUPABASE_URL` | **Yes** | Same Supabase project URL as the backend's `SUPABASE_URL`. |
+| `VITE_SUPABASE_ANON_KEY` | **Yes** | Supabase's public anon/publishable key (safe to ship client-side). |
+
+## API reference
+
+The full, current endpoint list lives in [`socore-backend/README.md`](socore-backend/README.md#endpoints) (kept in sync with `app/main.py`) — health/connections, profile, ingest, alerts, pending approvals, decisions, raw events, case management, the AI assistant chat, shift summary + Excel export, and admin (user approval/roles). Every endpoint is also explorable interactively at `/docs` once the backend is running.
+
+## Deployment
+
+The live demo runs on a single GCP VM: Wazuh (manager + dashboard, Docker), MISP, Cortex, and Shuffle each in their own containers, the FastAPI backend as a systemd service bound to a Docker-bridge-only address (reachable from Nginx and the Wazuh container, not from outside the VM), and the built React app served as static files by Nginx with a Let's Encrypt certificate. There's no one-command deploy script yet — see the individual READMEs above for how each piece is wired together if you're standing up your own instance.
+
+## Team
+
+The project is built by a 4-person team:
+
+| Role | Responsibility |
 |---|---|
-| **SIEM / Infrastructure** | Wazuh manager, agent-lər, GCP VM, deployment |
-| **Backend / AI** | FastAPI backend, korrelyasiya məntiqi, Groq inteqrasiyası (izah, chat, shift summary) |
-| **Threat Intel / SOAR** | MISP, Cortex, Shuffle inteqrasiyaları və workflow-ları |
-| **Detection / Docs** | Wazuh detection qaydaları, sənədləşdirmə, test ssenariləri |
+| **SIEM / Infrastructure** | Wazuh manager, agents, the GCP VM, deployment |
+| **Backend / AI** | The FastAPI backend, correlation logic, Groq integration (explanations, chat, shift summary) |
+| **Threat Intel / SOAR** | MISP, Cortex, and Shuffle integrations and workflows |
+| **Detection / Docs** | Wazuh detection rules, documentation, test scenarios |

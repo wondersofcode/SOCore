@@ -1,75 +1,115 @@
-# SOCore Backend
+# socore-backend
 
-Detection ilə dashboard arasındakı "beyin": Wazuh alertini qəbul edir, risk
-skoru hesablayır, AI (Groq) izahı əlavə edir, saxlayır və dashboard-a API
-verir. Human-in-the-Loop təsdiqi ilə cavab tədbirini (firewall blok dry-run +
-Slack) icra edir. Groq həmçinin Dashboard-dakı AI assistant chat-ı və
-Reports-dakı AI shift summary-ni işlədir — hər ikisi real data-ya
-(alerts/cases/pending) əsaslanır, uydurma cavab vermir.
+FastAPI backend for SOCore — ingests raw Wazuh events, enriches and scores
+them into alerts, gets AI explanations/chat/shift-summaries from Groq,
+manages the human-in-the-loop approval flow, and serves it all to the
+dashboard over a REST API.
 
-## İşə salmaq
+See the [root README](../README.md) for the overall architecture and the
+full setup flow (Supabase, frontend, external services). This file covers
+the backend specifically: getting it running, the endpoint list, and how
+to wire a real Wazuh manager into it.
+
+## Getting started
 
 ```bash
-cd socore-backend
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 
-# Konfiqurasiya (opsional — key olmasa mock işləyir)
 cp .env.example .env
-# .env-də GROQ_API_KEY və SLACK_WEBHOOK_URL doldur
+# Fill in at least DATABASE_URL and SUPABASE_URL — see the table below.
+# Everything else is optional; unconfigured integrations degrade
+# gracefully (mock/skip) instead of crashing the app.
 
 uvicorn app.main:app --reload --port 8000
 ```
 
-Aç: http://localhost:8000/docs (bütün endpoint-ləri buradan test edə bilərsən)
+Interactive docs (Swagger UI) at `http://localhost:8000/docs` — every
+endpoint below is directly testable from there, including auth-protected
+ones (use the "Authorize" button with a Supabase-issued JWT).
 
-## Dashboard-u qoşmaq
+### Environment variables
 
-Dashboard qovluğunda:
-```bash
-VITE_API_URL=http://localhost:8000 npm run dev
-```
-Backend işləyirsə dashboard avtomatik "live" data-ya keçir; işləmirsə nümunə
-data ilə açılır (yəni backend olmadan da sınaya bilərsən).
-
-## Endpoint-lər
-
-| Metod | Yol | Nə edir |
+| Variable | Required | Purpose |
 |---|---|---|
-| GET  | /api/health | Status, AI aktivdirmi, hər inteqrasiyanın real connection statusu |
-| GET  | /api/me | Cari istifadəçinin profili (ad, rol, tema, saat qurşağı) |
-| PATCH | /api/profile | Profil yenilə (ad, avatar, tema, saat qurşağı) |
-| POST | /api/ingest | Wazuh alertini qəbul edir, skorlayır, izah verir |
-| GET  | /api/alerts | Bütün alertlər (dashboard bunu oxuyur) |
-| GET  | /api/alerts/{id} | Tək alert |
-| GET  | /api/pending | Təsdiq gözləyənlər |
-| GET  | /api/decisions | Audit trail |
-| POST | /api/approve/{id} | Analitik təsdiqi/rəddi (HITL) |
-| GET  | /api/events, /api/events/{id}, /api/events/count | Xam Wazuh hadisə tarixçəsi |
-| GET/POST/PATCH | /api/cases* | Case idarəetməsi (yaratma, qeyd, tapşırıq, status) |
-| POST | /api/assistant/chat | AI chat — real alert/case/approval data-sına əsaslanaraq Groq ilə cavab |
-| GET  | /api/reports/shift-summary | AI növbə xülasəsi (8/12/24 saat, 5 dəq keş) |
-| GET  | /api/reports/export | Növbə hesabatını Excel (.xlsx) kimi endirir |
-| GET/POST/PATCH | /api/admin/* | İstifadəçi təsdiqi, rədd, rol dəyişikliyi (yalnız admin) |
+| `DATABASE_URL` | **Yes** | Supabase's direct Postgres connection string (`Settings → Database → Connection string → URI`). Without it the backend won't start persisting anything. |
+| `SUPABASE_URL` | **Yes** | Your Supabase project's base URL (`Settings → API → Project URL`), used to fetch its JWKS and verify auth tokens. Without it, every authenticated endpoint returns `500`. |
+| `GROQ_API_KEY` | Recommended | [console.groq.com](https://console.groq.com/keys) — powers alert explanations, the AI assistant chat, and shift summaries. Empty = deterministic template fallback instead of a real AI call. |
+| `PUBLIC_HOST` | No | Your own VM's public IP/host. Used only to build the "Open tool" links inside `GET /api/health`'s connection-status payload (Wazuh dashboard, MISP, Cortex, Shuffle). Defaults to the demo VM's IP if unset. |
+| `SLACK_WEBHOOK_URL` | No | Incoming webhook for alert/decision notifications. Skipped silently if unset. |
+| `MISP_URL`, `MISP_API_KEY`, `MISP_VERIFY_SSL` | No | MISP instance for IOC lookups. Skipped if unset. |
+| `CORTEX_URL`, `CORTEX_API_KEY` | No | Cortex instance (VirusTotal/AbuseIPDB analyzers). Skipped if unset. |
+| `SHUFFLE_WEBHOOK_URL` | No | The specific workflow's **Webhook Trigger** URL (not Shuffle's own login URL) — high-risk alerts are POSTed here for SOAR automation. Skipped if unset. |
 
-## Wazuh-u qoşmaq
+### Connecting the dashboard
 
-Wazuh integration script-i `/api/ingest`-ə bu formatda POST etməlidir:
+Point the frontend's `VITE_API_URL` at wherever this is running
+(`http://localhost:8000` for local dev). See
+[`design_zip`](../design_zip) / the root README for frontend setup.
+
+## Endpoints
+
+| Method & Path | Description |
+|---|---|
+| `GET /api/health` | Live connection status (real TCP reachability checks) for Wazuh, MISP, Cortex, Shuffle, Slack — plus "Open tool" links built from `PUBLIC_HOST`. Powers the dashboard's System Health / Pipeline Connections panels. |
+| `GET /api/profile` | Current authenticated user's profile (role, status, theme, timezone). |
+| `PATCH /api/profile` | Update the current user's own profile (theme, timezone, avatar). |
+| `POST /api/ingest` | Wazuh manager → backend webhook. Accepts a raw Wazuh alert JSON, stores it as an `Event`, runs correlation/enrichment, and — if it clears the risk threshold — produces a scored `Alert`. |
+| `GET /api/alerts` | List alerts (paginated, filterable by severity/status/search). |
+| `GET /api/alerts/{id}` | Single alert detail, including its AI explanation, MITRE technique, and enrichment data. |
+| `GET /api/alerts/{id}/explain` | Fetch (or lazily generate) the Groq explanation for one alert. |
+| `GET /api/pending` | Alerts currently awaiting analyst approval. |
+| `POST /api/decisions` | Record an analyst's approve/reject decision on an alert; writes to the audit trail and, if approved, triggers the response action / Shuffle handoff. |
+| `GET /api/decisions` | Decision/audit history. |
+| `GET /api/events` | Raw Wazuh event history (every event received, independent of whether it became an alert). |
+| `GET /api/events/{id}` | Single raw event, including its original JSON payload. |
+| `GET /api/cases` | List cases (Kanban board data: Open / Investigating / Contained / Closed). |
+| `POST /api/cases` | Create a case, optionally linked to one or more alerts. |
+| `PATCH /api/cases/{id}` | Update a case's status, notes, or tasks. |
+| `GET /api/mitre` | MITRE ATT&CK coverage matrix, derived from real alert data. |
+| `POST /api/assistant/chat` | AI assistant chat — answers a free-text question via Groq, grounded in a snapshot of current alerts/cases/pending approvals. |
+| `GET /api/reports/shift-summary` | Groq-generated shift recap for an 8/12/24-hour window (5-minute cache). |
+| `GET /api/reports/shift-summary/export` | The same window exported as a full Excel workbook (Executive Summary + Alerts/Cases/Events/Decisions sheets), built with `openpyxl`. |
+| `GET /api/admin/users` | *(admin only)* List all users, including pending registrations. |
+| `POST /api/admin/users/{id}/approve` | *(admin only)* Approve a pending registration. |
+| `PATCH /api/admin/users/{id}/role` | *(admin only)* Change a user's role (`l1_analyst` / `l2_analyst` / `admin`). |
+
+This table is kept in sync with `app/main.py` — if you add a route, update it here too. The live, always-accurate version is `/docs`.
+
+## Wiring up Wazuh
+
+If you have a real Wazuh manager, see
+[`../wazuh-integration/README.md`](../wazuh-integration/README.md) for the
+manager-side integration script and `ossec.conf` block.
+
+If you just want to exercise the pipeline without a live Wazuh manager, you
+can POST directly to `/api/ingest` in the shape Wazuh itself sends:
 
 ```json
 {
-  "source_ip": "77.83.36.190",
-  "attack_type": "Brute Force",
-  "mitre_id": "T1110",
-  "mitre_name": "Brute Force",
-  "rule_level": 12,
-  "country": "RU",
-  "asn": "AS208046",
-  "vt_score": 88,
-  "abuse_score": 95,
-  "raw": "log mətni"
+  "rule": {
+    "id": "5710",
+    "level": 10,
+    "description": "sshd: brute force trying to get access to the system.",
+    "groups": ["authentication_failed", "brute_force"]
+  },
+  "agent": { "id": "002", "name": "web-server-01" },
+  "data": { "srcip": "203.0.113.45" },
+  "full_log": "Sep 11 17:52:09 sshd[1234]: Failed password for root from 203.0.113.45 port 51422 ssh2",
+  "timestamp": "2026-09-11T17:52:09.021+0000"
 }
 ```
 
-rule_level (0-15) avtomatik severity-yə çevrilir. vt_score/abuse_score
-opsionaldır (Cortex/MISP-dən gələ bilər, gəlməsə 0 sayılır).
+`rule.level` (0–15) is Wazuh's own severity scale and is what the
+correlation engine's risk scoring is built on:
+
+| `rule.level` | Mapped severity |
+|---|---|
+| 0–6 | Low |
+| 7–9 | Medium |
+| 10–12 | High |
+| 13–15 | Critical |
+
+Every event is stored as-is first (`/api/events`) regardless of its level;
+only events that clear the configured alerting threshold and pass
+correlation become an `Alert`.

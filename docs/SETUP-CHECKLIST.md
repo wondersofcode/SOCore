@@ -1,85 +1,100 @@
-# SETUP CHECKLIST — Şəxs 3 (Threat Intel & SOAR Specialist)
+# External services setup checklist
 
-Bu sənəd sənin **əl ilə, brauzerdən** etməli olduğun addımları sadalayır.
+Step-by-step, browser/CLI setup for the external services SOCore's pipeline
+integrates with: threat intel enrichment (MISP, Cortex), SOAR automation
+(Shuffle), and notifications (Slack). None of these are required for the
+core app to run — see the [root README](../README.md#setup) — but without
+them the pipeline runs in a degraded (skip/mock) mode.
 
-🔵 YENİLƏNİB: Slack bildirişi, dry-run IP blok və case idarəetməsi artıq
-`socore-backend`-in özündə işləyir (bax `socore-backend/README.md`) —
-bunlar üçün ayrıca skript qurmağa ehtiyac yoxdur (köhnə skriptlər
-`docs/archive/threat-intel-soar/`-dadır, tarixi kontekst üçün). Threat
-intel enrichment (MISP/Cortex) və SOAR avtomatlaşdırma (Shuffle) üçün
-aşağıdakı VM addımları hələ də aktualdır.
+> Slack notifications, dry-run IP blocking, and case management already run
+> inside `socore-backend` itself (see
+> [`socore-backend/README.md`](../socore-backend/README.md)) — no separate
+> scripts are needed for those. The old standalone scripts referenced below
+> live in `docs/archive/threat-intel-soar/` for historical context only.
 
-## 1. Virtual Machine
-- [ ] MISP, Cortex, Shuffle üçün bir VM hazırla (tövsiyə: min. 4 vCPU / 8GB RAM)
-- [ ] Docker və Docker Compose quraşdır
-- [ ] Lazımi portları aç (MISP 443/8443, Cortex 9001, Shuffle 3001)
+## 1. Virtual machine
 
-## 2. MISP (Threat Intel)
-- [ ] Rəsmi `misp/misp-docker` reposundan MISP-i qaldır
-- [ ] Admin panelə daxil ol, default şifrəni dəyiş
-- [ ] **Administration > List Auth Keys** bölməsindən özünə API key yarat
-- [ ] `.env` faylında `MISP_URL` və `MISP_API_KEY`-i doldur
+- [ ] Provision a VM for MISP, Cortex, and Shuffle (recommended: 4 vCPU / 8GB RAM minimum)
+- [ ] Install Docker and Docker Compose
+- [ ] Open the required ports (MISP 443/8443, Cortex 9001, Shuffle 3001)
 
-## 3. Cortex (Threat Intel Analyzers)
-- [ ] Cortex-i qaldır, ilk admin istifadəçini yarat
-- [ ] Lazımi analyzer-ləri aktiv et (məs. VirusTotal, AbuseIPDB)
-- [ ] Yeni "orgadmin" user üçün API key generasiya et
-- [ ] `.env` faylında `CORTEX_URL` və `CORTEX_API_KEY`-i doldur
+## 2. MISP (threat intel)
 
-## 4. TheHive (SOAR case management) — 🔴 KÖHNƏLMİŞ, bax `socore-backend/README.md`
-TheHive 5-dən etibarən komersiyalaşıb (14 günlük trial-dan sonra lisenziya
-tələb edir), buna görə **istifadə olunmur**. Case idarəetməsi
-`socore-backend`-in `/api/cases*` endpoint-lərində daxili həyata keçirilib.
-Aşağıdakı addımlara artıq ehtiyac yoxdur:
-- ~~TheHive-ı qaldır (Cassandra + Elasticsearch asılılıqları ilə)~~
-- ~~Admin panel > Organisation > Users bölməsindən özünə API key yarat~~
-- ~~Cortex-i TheHive-a qoşmaq üçün Admin > Cortex bölməsində API key daxil et~~
-- ~~`.env` faylında `THEHIVE_URL` və `THEHIVE_API_KEY`-i doldur~~
+- [ ] Stand up MISP from the official [`misp/misp-docker`](https://github.com/MISP/misp-docker) repo
+- [ ] Log into the admin panel and change the default password
+- [ ] Create your own API key under **Administration → List Auth Keys**
+- [ ] Set `MISP_URL` and `MISP_API_KEY` in `socore-backend/.env`
 
-## 5. Shuffle (SOAR avtomatlaşdırma)
-- [ ] shuffle.io-da (və ya self-hosted) hesab aç / instance qaldır
-- [ ] Settings > API Keys bölməsindən API key yarat
-- [ ] `.env` faylında `SHUFFLE_URL` və `SHUFFLE_API_KEY`-i doldur
-- [ ] MISP/Cortex alert-lərini Shuffle workflow-una bağlamaq üçün webhook trigger qur (TheHive artıq yoxdur, bax bənd 4)
+## 3. Cortex (threat intel analyzers)
 
-## 6. Slack — 🔴 KÖHNƏLMİŞ hissə var, bax aşağı
-Slack bildirişi artıq `socore-backend`-in özündə işləyir
-(`app/actions.py::send_slack_alert`, bax `socore-backend/README.md`).
-Yalnız webhook-u yaratmaq lazımdır:
-- [ ] [api.slack.com/apps](https://api.slack.com/apps) saytında yeni app yarat
-- [ ] **Incoming Webhooks**-u aktiv et, alert kanalını seç
-- [ ] Webhook URL-ni **`socore-backend/.env`** faylında `SLACK_WEBHOOK_URL`-ə yaz (kök `.env` deyil)
+- [ ] Stand up Cortex and create the first admin user
+- [ ] Enable the analyzers you need (e.g. VirusTotal, AbuseIPDB)
+- [ ] Generate an API key for a new "orgadmin" user
+- [ ] Set `CORTEX_URL` and `CORTEX_API_KEY` in `socore-backend/.env`
+
+## 4. TheHive — deprecated, superseded by built-in case management
+
+TheHive became commercial as of v5 (license required after a 14-day
+trial), so it is **not used**. Case management is implemented natively in
+`socore-backend`'s `/api/cases*` endpoints instead — see
+[`socore-backend/README.md`](../socore-backend/README.md). None of the
+steps below are needed:
+
+- ~~Stand up TheHive (with its Cassandra + Elasticsearch dependencies)~~
+- ~~Create an API key under Admin panel → Organisation → Users~~
+- ~~Connect Cortex to TheHive under Admin → Cortex~~
+- ~~Set `THEHIVE_URL` and `THEHIVE_API_KEY` in `.env`~~
+
+## 5. Shuffle (SOAR automation)
+
+- [ ] Create an account on [shuffle.io](https://shuffler.io) (or stand up a self-hosted instance)
+- [ ] Build a workflow and note its **Webhook Trigger** node URL (not Shuffle's own login URL)
+- [ ] Set `SHUFFLE_WEBHOOK_URL` in `socore-backend/.env` to that trigger URL — high-risk alerts are POSTed here automatically
+
+## 6. Slack
+
+Slack notifications already run inside `socore-backend` itself
+(`app/actions.py::send_slack_alert` — see
+[`socore-backend/README.md`](../socore-backend/README.md)). You only need
+to create the webhook:
+
+- [ ] Create a new app at [api.slack.com/apps](https://api.slack.com/apps)
+- [ ] Enable **Incoming Webhooks** and pick the alert channel
+- [ ] Set the webhook URL as `SLACK_WEBHOOK_URL` in **`socore-backend/.env`** (not the repo root `.env` — there isn't one)
 
 ## 7. VirusTotal
-- [ ] [virustotal.com](https://www.virustotal.com)-da hesab aç
-- [ ] Profile > API Key-i kopyala
-- [ ] `.env` faylında `VIRUSTOTAL_API_KEY`-i doldur
-- [ ] Cortex-də VirusTotal analyzer-inə eyni key-i daxil et
+
+- [ ] Create an account at [virustotal.com](https://www.virustotal.com)
+- [ ] Copy your API key from Profile → API Key
+- [ ] Enter the same key into Cortex's VirusTotal analyzer configuration
 
 ## 8. AbuseIPDB
-- [ ] [abuseipdb.com](https://www.abuseipdb.com)-da hesab aç
-- [ ] Account > API > Create Key
-- [ ] `.env` faylında `ABUSEIPDB_API_KEY`-i doldur
-- [ ] Cortex-də AbuseIPDB analyzer-inə eyni key-i daxil et
 
-## 9. Test — 🔴 köhnə skript addımları silindi
-`slack_notifier.py` / `ticket_creator.py` / `firewall_blocker.py` skriptləri
-arxivləşdirilib (bax `docs/archive/threat-intel-soar/`). Bunun əvəzinə real
-indiki axını test et:
+- [ ] Create an account at [abuseipdb.com](https://www.abuseipdb.com)
+- [ ] Account → API → Create Key
+- [ ] Enter the same key into Cortex's AbuseIPDB analyzer configuration
+
+## 9. Test the pipeline end-to-end
+
 - [ ] `cd socore-backend && uvicorn app.main:app --reload --port 8000`
-- [ ] `POST http://localhost:8000/api/ingest` bir test Wazuh event-i ilə —
-      Slack bildirişi və risk skoru avtomatik işləyəcək (bax
-      `socore-backend/README.md`-dəki JSON nümunəsi)
-- [ ] Dashboard-dan (və ya `/docs` Swagger UI-dan) bir alert-i approve et —
-      dry-run IP blok + Slack bildirişi backend loglarında görünəcək
+- [ ] `POST http://localhost:8000/api/ingest` with a test Wazuh event (see the
+      JSON example in [`socore-backend/README.md`](../socore-backend/README.md#wiring-up-wazuh))
+      — the Slack notification and risk scoring will fire automatically
+- [ ] Approve the resulting alert from the dashboard (or `/docs` Swagger UI)
+      — the dry-run IP block and Slack notification should appear in the backend logs
 
-## 10. Wazuh → Backend inteqrasiyası
-Wazuh→Backend inteqrasiyası real Windows agent-dən (Brute Force/T1110,
-Multiple Windows Logon Failures qaydası) tam uçdan-uca doğrulanıb — mexanizm
-YOXLANILIB deyil, artıq REAL İŞLƏYİR.
+## 10. Wazuh → Backend integration
 
-## Qeyd
-`socore-backend/app/actions.py`-dakı `block_ip()` təhlükəsizlik səbəbindən
-defolt olaraq **heç vaxt real block etmir** — yalnız nə edəcəyini loglayır.
-Real block lazım olarsa, əvvəlcə komanda ilə razılaşıb bu funksiyanı real
-firewall-a (iptables/cloud provider/NGFW) uyğun implement etmək lazımdır.
+This integration has been verified fully end-to-end against a real Windows
+agent (Brute Force / T1110, "Multiple Windows Logon Failures" rule) — it's
+not just wired up, it's confirmed working against real detections. See
+[`wazuh-integration/README.md`](../wazuh-integration/README.md) for the
+manager-side setup.
+
+## Note on IP blocking
+
+`socore-backend/app/actions.py`'s `block_ip()` **never performs a real
+block** by default, for safety — it only logs what it would do. If real
+blocking is needed, that function needs to be deliberately implemented
+against a real firewall (iptables / cloud provider / NGFW) after the team
+agrees on the approach.
