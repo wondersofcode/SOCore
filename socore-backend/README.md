@@ -1,7 +1,7 @@
 # SOCore Backend
 
 Detection ilə dashboard arasındakı "beyin": Wazuh alertini qəbul edir, risk
-skoru hesablayır, AI (Gemini) izahı əlavə edir, saxlayır və dashboard-a API
+skoru hesablayır, AI (Groq) izahı əlavə edir, saxlayır və dashboard-a API
 verir. Human-in-the-Loop təsdiqi ilə cavab tədbirini (firewall blok dry-run +
 Slack) icra edir.
 
@@ -14,7 +14,7 @@ pip install -r requirements.txt
 
 # Konfiqurasiya (opsional — key olmasa mock işləyir)
 cp .env.example .env
-# .env-də GEMINI_API_KEY və SLACK_WEBHOOK_URL doldur
+# .env-də GROQ_API_KEY və SLACK_WEBHOOK_URL doldur
 
 uvicorn app.main:app --reload --port 8000
 ```
