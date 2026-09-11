@@ -1,6 +1,8 @@
 import { useMemo, useState } from 'react'
 import { SeverityDot, AlertStatusPill, RiskBadge } from './Shared'
 import { useStore } from '../store'
+import { useAuth } from '../lib/AuthContext'
+import { formatTime, formatShortDate } from '../lib/dateFormat'
 import type { Alert, Severity, AlertStatus } from '../data'
 
 const SEVERITIES: Severity[] = ['Critical', 'High', 'Medium', 'Low', 'Informational']
@@ -19,13 +21,6 @@ const sevRank: Record<Severity, number> = {
 }
 
 type SortKey = 'time' | 'risk' | 'severity' | 'reputation'
-
-// Backend timestamps are "YYYY-MM-DD HH:MM:SS" (no 'T'); Date needs one to parse reliably.
-function formatAlertDate(timestamp: string): string {
-  const date = new Date(timestamp.includes('T') ? timestamp : timestamp.replace(' ', 'T'))
-  if (Number.isNaN(date.getTime())) return ''
-  return date.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })
-}
 
 // ── Reputation bar (enrichment signal — only lives on this screen) ──────────
 function RepBar({ label, score }: { label: string; score: number }) {
@@ -89,6 +84,8 @@ function Facet({
 
 export default function Alerts({ onSelectAlert }: { onSelectAlert: (id: string) => void }) {
   const { alerts } = useStore()
+  const { profile } = useAuth()
+  const timezone = profile?.timezone
   const [sevFilter, setSevFilter] = useState<string[]>([])
   const [statusFilter, setStatusFilter] = useState<string[]>([])
   const [originFilter, setOriginFilter] = useState<string[]>([])
@@ -291,8 +288,8 @@ export default function Alerts({ onSelectAlert }: { onSelectAlert: (id: string) 
                       </td>
 
                       <td className={`px-3 ${rowPad} font-mono text-[var(--color-text-secondary)] whitespace-nowrap`}>
-                        {a.timestamp.slice(11)}
-                        <span className="text-[var(--color-text-muted)] text-[10px] ml-1.5">{formatAlertDate(a.timestamp)}</span>
+                        {formatTime(a.timestamp, timezone)}
+                        <span className="text-[var(--color-text-muted)] text-[10px] ml-1.5">{formatShortDate(a.timestamp, timezone)}</span>
                       </td>
 
                       <td className={`px-3 ${rowPad} whitespace-nowrap`}>

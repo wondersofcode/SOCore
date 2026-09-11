@@ -50,6 +50,11 @@ alter table public.profiles drop constraint if exists profiles_theme_check;
 alter table public.profiles add constraint profiles_theme_check
   check (theme_preference in ('dark', 'light'));
 
+-- IANA timezone name (e.g. 'Asia/Baku'), used to render alert/event/case
+-- times in the analyst's local zone instead of raw UTC. Defaults to Baku
+-- since that's where most of the team is.
+alter table public.profiles add column if not exists timezone text not null default 'Asia/Baku';
+
 -- Auto-create a profile row whenever a new user signs up via Supabase Auth.
 -- Deliberately omits `status` and `role` so each keeps its own column
 -- default (pending / l1_analyst) instead of hardcoding them twice.

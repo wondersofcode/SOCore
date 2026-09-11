@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { SeverityBadge, AlertStatusPill, RiskScore, AiExplanation, ApprovalPill, SourceRow } from './Shared'
 import { useStore } from '../store'
+import { useAuth } from '../lib/AuthContext'
+import { formatDateTime, formatTimeOfDay } from '../lib/dateFormat'
 
 interface TimelineStep {
   label: string
@@ -19,6 +21,8 @@ export default function AlertDetail({
   onViewEvent?: (eventId: string) => void
 }) {
   const { alerts, decide } = useStore()
+  const { profile } = useAuth()
+  const timezone = profile?.timezone
   const alert = alerts.find(a => a.id === alertId)
   const [note, setNote] = useState('')
   const [noteSubmitted, setNoteSubmitted] = useState(false)
@@ -28,10 +32,10 @@ export default function AlertDetail({
   if (!alert) return null
 
   const steps: TimelineStep[] = [
-    { label: 'Detected', time: alert.detectedAt, done: true, color: '#00d4ff' },
-    { label: 'Enriched', time: alert.enrichedAt || '—', done: !!alert.enrichedAt, color: '#a855f7' },
-    { label: 'Responded', time: alert.respondedAt || '—', done: !!alert.respondedAt, color: '#f97316' },
-    { label: 'Tracked', time: alert.status === 'Resolved' ? '09:45:00' : '—', done: alert.status === 'Resolved', color: '#22c55e' },
+    { label: 'Detected', time: formatTimeOfDay(alert.detectedAt, alert.timestamp, timezone), done: true, color: '#00d4ff' },
+    { label: 'Enriched', time: alert.enrichedAt ? formatTimeOfDay(alert.enrichedAt, alert.timestamp, timezone) : '—', done: !!alert.enrichedAt, color: '#a855f7' },
+    { label: 'Responded', time: alert.respondedAt ? formatTimeOfDay(alert.respondedAt, alert.timestamp, timezone) : '—', done: !!alert.respondedAt, color: '#f97316' },
+    { label: 'Tracked', time: alert.status === 'Resolved' ? formatTimeOfDay('09:45:00', alert.timestamp, timezone) : '—', done: alert.status === 'Resolved', color: '#22c55e' },
   ]
 
   const vtColor = alert.vtScore >= 75 ? '#ef4444' : alert.vtScore >= 40 ? '#f97316' : '#22c55e'
@@ -60,7 +64,7 @@ export default function AlertDetail({
               <span className="text-[var(--color-text-muted)]">·</span>
               <span className="text-[var(--color-text-secondary)]">{alert.mitreName}</span>
               <span className="text-[var(--color-text-muted)]">·</span>
-              <span className="font-mono text-[var(--color-text-secondary)]">{alert.timestamp}</span>
+              <span className="font-mono text-[var(--color-text-secondary)]">{formatDateTime(alert.timestamp, timezone)}</span>
             </div>
           </div>
           <div className="flex items-start gap-4">

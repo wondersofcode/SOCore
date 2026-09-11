@@ -8,6 +8,8 @@ import { riskTrendData, attackTypeData } from '../data'
 import type { WazuhRawEvent } from '../data'
 import { useStore } from '../store'
 import { api } from '../api'
+import { useAuth } from '../lib/AuthContext'
+import { formatDateTime } from '../lib/dateFormat'
 
 function formatDuration(ms: number): string {
   const totalSeconds = Math.max(0, Math.round(ms / 1000))
@@ -119,6 +121,8 @@ function KanbanCard({ id, title, severity }: { id: string; title: string; severi
 // ── Main Dashboard ───────────────────────────────────────────────────────────
 export default function Dashboard({ onSelectAlert, onOpenQueue, onOpenApprovals }: { onSelectAlert: (id: string) => void; onOpenQueue: () => void; onOpenApprovals: () => void }) {
   const { alerts, cases, pending, live } = useStore()
+  const { profile } = useAuth()
+  const timezone = profile?.timezone
   // The dashboard shows only the newest slice — full triage lives on the Alerts queue.
   const recent = [...alerts].sort((a, b) => b.timestamp.localeCompare(a.timestamp)).slice(0, 5)
   const openAlerts = alerts.filter(a => a.status !== 'Resolved')
@@ -303,7 +307,7 @@ export default function Dashboard({ onSelectAlert, onOpenQueue, onOpenApprovals 
                   onClick={() => onSelectAlert(alert.id)}
                   className="border-b border-[var(--color-border)] hover:bg-[var(--color-surface-2)] cursor-pointer group transition-colors"
                 >
-                  <td className="px-4 py-2.5 font-mono text-[var(--color-text-secondary)] whitespace-nowrap">{alert.timestamp}</td>
+                  <td className="px-4 py-2.5 font-mono text-[var(--color-text-secondary)] whitespace-nowrap">{formatDateTime(alert.timestamp, timezone)}</td>
                   <td className="px-4 py-2.5"><RiskBadge score={alert.riskScore} /></td>
                   <td className="px-4 py-2.5"><SeverityBadge severity={alert.severity} /></td>
                   <td className="px-4 py-2.5 font-mono text-[var(--color-text-primary)] whitespace-nowrap">{alert.sourceIP}</td>

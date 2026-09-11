@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react'
 import { api } from '../api'
 import type { WazuhRawEvent } from '../data'
 import { Panel, PanelHeader } from './Shared'
+import { useAuth } from '../lib/AuthContext'
+import { formatDateTime } from '../lib/dateFormat'
 
 const PAGE_SIZE = 25
 
@@ -15,6 +17,8 @@ function prettyRaw(raw: string): string {
 }
 
 function EventDrawer({ event, onClose }: { event: WazuhRawEvent; onClose: () => void }) {
+  const { profile } = useAuth()
+  const timezone = profile?.timezone
   return (
     <div className="fixed inset-0 z-50 flex" onClick={onClose}>
       <div className="flex-1 bg-black/60 backdrop-blur-sm" />
@@ -35,7 +39,7 @@ function EventDrawer({ event, onClose }: { event: WazuhRawEvent; onClose: () => 
               <span className="text-[var(--color-text-muted)]">·</span>
               <span className="font-mono text-[var(--color-text-secondary)]">level {event.ruleLevel}</span>
               <span className="text-[var(--color-text-muted)]">·</span>
-              <span className="font-mono text-[var(--color-text-secondary)]">{event.timestamp}</span>
+              <span className="font-mono text-[var(--color-text-secondary)]">{formatDateTime(event.timestamp, timezone)}</span>
             </div>
           </div>
           <button onClick={onClose} className="text-[var(--color-info)] hover:text-[var(--color-text-primary)] transition-colors p-1">
@@ -84,6 +88,8 @@ export default function Events({
   preselectId?: string | null
   onConsumedPreselect?: () => void
 }) {
+  const { profile } = useAuth()
+  const timezone = profile?.timezone
   const [events, setEvents] = useState<WazuhRawEvent[]>([])
   const [page, setPage] = useState(0)
   const [loading, setLoading] = useState(true)
@@ -160,7 +166,7 @@ export default function Events({
                     onClick={() => setSelected(ev)}
                     className="border-b border-[var(--color-border)] last:border-b-0 hover:bg-[var(--color-surface-2)] cursor-pointer group transition-colors"
                   >
-                    <td className="px-4 py-2.5 font-mono text-[var(--color-text-secondary)] whitespace-nowrap">{ev.timestamp}</td>
+                    <td className="px-4 py-2.5 font-mono text-[var(--color-text-secondary)] whitespace-nowrap">{formatDateTime(ev.timestamp, timezone)}</td>
                     <td className="px-4 py-2.5 font-mono text-[var(--color-text-primary)] whitespace-nowrap">{ev.sourceIP}</td>
                     <td className="px-4 py-2.5">
                       <span className="font-mono text-[#a855f7]">{ev.ruleId || '—'}</span>

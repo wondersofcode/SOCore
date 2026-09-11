@@ -4,6 +4,7 @@ import { useAuth } from '../lib/AuthContext'
 import { supabase } from '../lib/supabase'
 import { api } from '../api'
 import type { UserRole } from '../data'
+import { POPULAR_TIMEZONES } from '../lib/dateFormat'
 
 const ROLE_LABEL: Record<UserRole, string> = {
   l1_analyst: 'L1 Analyst',
@@ -125,7 +126,10 @@ function ProfileCard() {
 function ThemeCard() {
   const { profile, refreshProfile } = useAuth()
   const [busy, setBusy] = useState(false)
+  const [tzBusy, setTzBusy] = useState(false)
+  const [tzError, setTzError] = useState(false)
   const theme = profile?.themePreference ?? 'dark'
+  const timezone = profile?.timezone ?? 'Asia/Baku'
 
   const setTheme = async (next: 'dark' | 'light') => {
     if (next === theme || busy) return
@@ -141,24 +145,54 @@ function ThemeCard() {
     }
   }
 
+  const setTimezone = async (next: string) => {
+    if (next === timezone || tzBusy) return
+    setTzBusy(true)
+    setTzError(false)
+    try {
+      await api.updateProfile({ timezone: next })
+      await refreshProfile()
+    } catch {
+      setTzError(true)
+    } finally {
+      setTzBusy(false)
+    }
+  }
+
   return (
     <div className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg px-5 py-4">
       <div className="text-xs font-semibold text-[var(--color-text-primary)] mb-1">Appearance</div>
       <div className="text-[11px] text-[var(--color-info)] mb-3">Saved to your account — follows you across devices</div>
-      <div className="inline-flex rounded-lg border border-[var(--color-border)] p-0.5 bg-[var(--color-background)]">
-        {(['dark', 'light'] as const).map(opt => (
-          <button
-            key={opt}
-            onClick={() => setTheme(opt)}
-            disabled={busy}
-            className="px-3.5 py-1.5 rounded-md text-[11px] font-semibold capitalize transition-colors disabled:opacity-60"
-            style={theme === opt
-              ? { background: '#00d4ff20', color: '#00d4ff' }
-              : { color: 'var(--color-text-secondary)' }}
+      <div className="flex items-center gap-3 flex-wrap">
+        <div className="inline-flex rounded-lg border border-[var(--color-border)] p-0.5 bg-[var(--color-background)]">
+          {(['dark', 'light'] as const).map(opt => (
+            <button
+              key={opt}
+              onClick={() => setTheme(opt)}
+              disabled={busy}
+              className="px-3.5 py-1.5 rounded-md text-[11px] font-semibold capitalize transition-colors disabled:opacity-60"
+              style={theme === opt
+                ? { background: '#00d4ff20', color: '#00d4ff' }
+                : { color: 'var(--color-text-secondary)' }}
+            >
+              {opt}
+            </button>
+          ))}
+        </div>
+
+        <div className="flex flex-col gap-1">
+          <select
+            value={timezone}
+            onChange={e => setTimezone(e.target.value)}
+            disabled={tzBusy}
+            className="bg-[var(--color-background)] border border-[var(--color-border)] rounded-lg px-2.5 py-1.5 text-[11px] font-semibold text-[var(--color-text-primary)] focus:outline-none focus:border-[#00d4ff40] disabled:opacity-60"
           >
-            {opt}
-          </button>
-        ))}
+            {POPULAR_TIMEZONES.map(tz => (
+              <option key={tz.value} value={tz.value}>{tz.label}</option>
+            ))}
+          </select>
+          {tzError && <span className="text-[10px] text-[#ef4444]">Could not save — try again.</span>}
+        </div>
       </div>
     </div>
   )

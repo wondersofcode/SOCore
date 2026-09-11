@@ -65,7 +65,7 @@ export const api = {
     req<AdminUser>(`/api/admin/users/${id}/role`, { method: 'PATCH', body: JSON.stringify({ role }) }),
 
   // Self-service profile edit (Settings page)
-  updateProfile: (patch: { firstName?: string; lastName?: string; avatarUrl?: string; themePreference?: string }) =>
+  updateProfile: (patch: { firstName?: string; lastName?: string; avatarUrl?: string; themePreference?: string; timezone?: string }) =>
     req<AdminUser>('/api/profile', { method: 'PATCH', body: JSON.stringify(patch) }),
 
   // Case management — in-house replacement for TheHive (see backend README).

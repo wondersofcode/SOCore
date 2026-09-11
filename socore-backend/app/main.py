@@ -88,6 +88,7 @@ def me(current_user: auth.CurrentUser = Depends(auth.get_current_user)) -> dict:
         "lastName": profile.lastName if profile else "",
         "avatarUrl": profile.avatarUrl if profile else "",
         "themePreference": profile.themePreference if profile else "dark",
+        "timezone": profile.timezone if profile else "Asia/Baku",
     }
 
 
@@ -103,6 +104,7 @@ def update_my_profile(
         last_name=req.lastName,
         avatar_url=req.avatarUrl,
         theme_preference=req.themePreference,
+        timezone=req.timezone,
     )
     if updated is None:
         raise HTTPException(status_code=404, detail="Profile not found")

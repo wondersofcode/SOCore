@@ -1,12 +1,16 @@
 import { useState } from 'react'
 import { SeverityBadge, CaseStatusPill, SeverityDot } from './Shared'
 import { useStore } from '../store'
+import { useAuth } from '../lib/AuthContext'
+import { formatTime } from '../lib/dateFormat'
 import type { Case, CaseStatus } from '../data'
 
 const STATUS_FLOW: CaseStatus[] = ['Open', 'Investigating', 'Contained', 'Closed']
 
 function CaseDetail({ caseItem, onClose }: { caseItem: Case; onClose: () => void }) {
   const { alerts, currentUser, updateCaseStatus, addCaseNote, toggleCaseTask, live } = useStore()
+  const { profile } = useAuth()
+  const timezone = profile?.timezone
   const [note, setNote] = useState('')
 
   const linkedAlerts = caseItem.alertIds
@@ -124,7 +128,7 @@ function CaseDetail({ caseItem, onClose }: { caseItem: Case; onClose: () => void
                   <span className="font-mono text-[10px] text-[var(--color-text-muted)] shrink-0">{a.id}</span>
                   <span className="text-xs text-[var(--color-text-primary)] flex-1 truncate">{a.attackType}</span>
                   <span className="font-mono text-[10px] text-[#a855f7] shrink-0">{a.mitreId}</span>
-                  <span className="font-mono text-[10px] text-[var(--color-info)] shrink-0">{a.timestamp.slice(11)}</span>
+                  <span className="font-mono text-[10px] text-[var(--color-info)] shrink-0">{formatTime(a.timestamp, timezone)}</span>
                 </div>
               ))}
             </div>

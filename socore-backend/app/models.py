@@ -228,6 +228,7 @@ class Profile(BaseModel):
     role: ProfileRole
     status: ProfileStatus
     themePreference: str = "dark"
+    timezone: str = "Asia/Baku"
     createdAt: str = ""
 
 
@@ -240,6 +241,7 @@ class UpdateProfileRequest(BaseModel):
     lastName: Optional[str] = None
     avatarUrl: Optional[str] = None
     themePreference: Optional[str] = None
+    timezone: Optional[str] = None
 
 
 def now_hms() -> str:

@@ -99,6 +99,7 @@ def _row_to_profile(row: dict) -> Profile:
         role=row["role"],
         status=row["status"],
         themePreference=row.get("theme_preference") or "dark",
+        timezone=row.get("timezone") or "Asia/Baku",
         createdAt=_iso(row.get("created_at")),
     )
 
@@ -425,6 +426,7 @@ class AlertStore:
         last_name: str | None = None,
         avatar_url: str | None = None,
         theme_preference: str | None = None,
+        timezone: str | None = None,
     ) -> Profile | None:
         fields, values = [], []
         for column, value in (
@@ -432,6 +434,7 @@ class AlertStore:
             ("last_name", last_name),
             ("avatar_url", avatar_url),
             ("theme_preference", theme_preference),
+            ("timezone", timezone),
         ):
             if value is not None:
                 fields.append(f"{column}=%s")

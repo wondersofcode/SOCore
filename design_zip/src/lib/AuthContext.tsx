@@ -11,6 +11,7 @@ export interface Profile {
   lastName: string
   avatarUrl: string
   themePreference: 'dark' | 'light'
+  timezone: string
 }
 
 interface AuthState {
@@ -69,6 +70,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         lastName: data.lastName ?? '',
         avatarUrl: data.avatarUrl ?? '',
         themePreference: data.themePreference === 'light' ? 'light' : 'dark',
+        timezone: data.timezone || 'Asia/Baku',
       })
     } catch {
       // Backend unreachable — role/profile stay null, UI falls back to the least-privileged view.
