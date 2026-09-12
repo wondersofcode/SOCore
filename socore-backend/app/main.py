@@ -271,12 +271,12 @@ def ingest(event: WazuhEvent) -> Alert:
 
 # ── Reads for the dashboard ─────────────────────────────────────────────────
 @app.get("/api/alerts", response_model=list[Alert])
-def list_alerts() -> list[Alert]:
+def list_alerts(current_user: auth.CurrentUser = Depends(auth.get_current_user)) -> list[Alert]:
     return store.all()
 
 
 @app.get("/api/alerts/{alert_id}", response_model=Alert)
-def get_alert(alert_id: str) -> Alert:
+def get_alert(alert_id: str, current_user: auth.CurrentUser = Depends(auth.get_current_user)) -> Alert:
     alert = store.get(alert_id)
     if alert is None:
         raise HTTPException(status_code=404, detail="Alert not found")
@@ -284,7 +284,7 @@ def get_alert(alert_id: str) -> Alert:
 
 
 @app.get("/api/pending", response_model=list[Alert])
-def list_pending() -> list[Alert]:
+def list_pending(current_user: auth.CurrentUser = Depends(auth.get_current_user)) -> list[Alert]:
     return store.pending()
 
 
@@ -341,20 +341,24 @@ def mark_false_positive(
 
 # ── Raw event history — independent of whatever Alert an event became ──────
 @app.get("/api/events", response_model=list[Event])
-def list_events(limit: int = 50, offset: int = 0) -> list[Event]:
+def list_events(
+    limit: int = 50,
+    offset: int = 0,
+    current_user: auth.CurrentUser = Depends(auth.get_current_user),
+) -> list[Event]:
     limit = max(1, min(limit, 200))
     return store.all_events(limit=limit, offset=offset)
 
 
 @app.get("/api/events/count")
-def events_count() -> dict:
+def events_count(current_user: auth.CurrentUser = Depends(auth.get_current_user)) -> dict:
     """Total raw event count — the Dashboard's Detection Pipeline needs the
     real total, not just one paginated page of /api/events."""
     return {"count": store.count_events()}
 
 
 @app.get("/api/events/{event_id}", response_model=Event)
-def get_event(event_id: str) -> Event:
+def get_event(event_id: str, current_user: auth.CurrentUser = Depends(auth.get_current_user)) -> Event:
     event = store.get_event(event_id)
     if event is None:
         raise HTTPException(status_code=404, detail="Event not found")
@@ -362,7 +366,7 @@ def get_event(event_id: str) -> Event:
 
 
 @app.get("/api/decisions")
-def list_decisions() -> list:
+def list_decisions(current_user: auth.CurrentUser = Depends(auth.get_current_user)) -> list:
     return store.decisions()
 
 
@@ -407,7 +411,7 @@ def approve(
 # external dependency or license risk.
 
 @app.get("/api/cases", response_model=list[Case])
-def list_cases() -> list[Case]:
+def list_cases(current_user: auth.CurrentUser = Depends(auth.get_current_user)) -> list[Case]:
     return store.all_cases()
 
 
