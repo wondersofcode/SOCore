@@ -66,7 +66,15 @@ Point the frontend's `VITE_API_URL` at wherever this is running
 | `GET /api/cases` | List cases (Kanban board data: Open / Investigating / Contained / Closed). |
 | `POST /api/cases` | Create a case, optionally linked to one or more alerts. |
 | `PATCH /api/cases/{id}` | Update a case's status, notes, or tasks. |
-| `GET /api/mitre` | MITRE ATT&CK coverage matrix, derived from real alert data. |
+| `GET /api/mitre` | ATT&CK Center: the full Enterprise matrix with coverage status/counts computed live from real `alerts` + `simulation_runs` rows. |
+| `GET /api/mitre/{technique_id}` | One technique's detail: coverage stats, related alerts, related cases, related simulation runs. |
+| `GET /api/simulations` | Simulation Center catalog (the allowlisted, controlled detection-validation tests) with real run stats per entry. |
+| `GET /api/simulations/summary` | Simulation Center overview metrics (passed/failed/running, detection rate, techniques never tested). |
+| `GET /api/simulations/{id}` | One catalog entry's detail. |
+| `POST /api/simulations/{id}/runs` | *(l2_analyst/admin)* Start a controlled run — opens a detection window, executes nothing. |
+| `GET /api/simulations/runs` | Run history, filterable by `techniqueId`/`status`/`platform`. |
+| `GET /api/simulations/runs/{id}` | One run's detail: current evidence-based status + a real timeline (Wazuh event → ingestion → correlation → alert → response). |
+| `POST /api/simulations/runs/{id}/mark-executed` | *(l2_analyst/admin)* Analyst confirms the manual test was actually performed. |
 | `POST /api/assistant/chat` | AI assistant chat — answers a free-text question via Groq, grounded in a snapshot of current alerts/cases/pending approvals. |
 | `GET /api/reports/shift-summary` | Groq-generated shift recap for an 8/12/24-hour window (5-minute cache). |
 | `GET /api/reports/shift-summary/export` | The same window exported as a full Excel workbook (Executive Summary + Alerts/Cases/Events/Decisions sheets), built with `openpyxl`. |
@@ -75,6 +83,47 @@ Point the frontend's `VITE_API_URL` at wherever this is running
 | `PATCH /api/admin/users/{id}/role` | *(admin only)* Change a user's role (`l1_analyst` / `l2_analyst` / `admin`). |
 
 This table is kept in sync with `app/main.py` — if you add a route, update it here too. The live, always-accurate version is `/docs`.
+
+## ATT&CK Center & Simulation Center
+
+**ATT&CK Center** (`app/mitre.py`, `app/mitre_attack_data.py`) renders the
+Enterprise ATT&CK matrix (public MITRE taxonomy, static) and layers a live
+coverage status on every technique, computed from two real sources only:
+
+- `alerts.mitre_id` — every alert already carries the technique Wazuh
+  reported (see `correlation.py`). A technique with at least one alert is
+  `detected`.
+- `simulation_runs` — a technique with no real alerts but a passed
+  simulation run is `tested_passed`; failed/partial runs and no alerts is
+  `tested_failed`; no alerts and no runs is `not_tested`.
+
+Nothing here is fabricated — a technique the platform has never seen from
+either source reports `not_tested`, never an invented percentage.
+
+**Simulation Center** (`app/simulation_catalog.py`, `app/simulations.py`) is
+a *detection-validation* tool, not an attack platform:
+
+- The catalog is a fixed, reviewed allowlist in code — there is no
+  "create simulation" endpoint and no remote-exec surface anywhere in this
+  backend. Starting a run (`POST /api/simulations/{id}/runs`) only inserts a
+  `simulation_runs` row and opens a detection window; it never runs anything.
+  The analyst performs the documented manual action themselves, against
+  infrastructure they already control.
+- Detection success is decided later, purely from whatever real
+  `events`/`alerts` rows land in that window: **PASSED** requires both a
+  matching `Event` and an `Alert` correctly mapped to the technique under
+  test — never just "the endpoint was called". **PARTIAL** means telemetry
+  arrived but never became a correctly-mapped alert. **FAILED** means the
+  analyst confirmed (`mark-executed`) they ran the test and nothing was
+  observed. **NOT_OBSERVED** means the window closed and the test was never
+  confirmed as having actually run — kept distinct from FAILED because that
+  is a genuinely different fact.
+- `simulation.run` (starting a run / marking one executed) requires the
+  `l2_analyst` or `admin` role (`auth.require_l2_or_admin`), the same tier as
+  the frontend's other "touches real infrastructure" actions. Viewing the
+  catalog, coverage, and history only requires being an approved analyst.
+  Every run row records who started it, when, what was tested, and the
+  result — the row itself is the audit trail.
 
 ## Wiring up Wazuh
 

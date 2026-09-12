@@ -19,7 +19,9 @@ from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 
-from . import actions, ai_explainer, assistant, auth, db, enrichment, integrations_health, report_export, shift_summary
+from . import actions, ai_explainer, assistant, auth, db, enrichment, integrations_health, mitre, report_export, shift_summary, simulations
+from . import mitre_attack_data as attack_data
+from . import simulation_catalog
 from .correlation import correlate
 from .models import (
     AddNoteRequest,
@@ -30,8 +32,15 @@ from .models import (
     Case,
     CreateCaseRequest,
     Event,
+    MitreCenterResponse,
     Profile,
     ShiftSummaryResponse,
+    SimulationCenterSummary,
+    SimulationDefinitionOut,
+    SimulationRun,
+    SimulationRunDetail,
+    StartSimulationRunRequest,
+    TechniqueDetail,
     UpdateCaseRequest,
     UpdateProfileRequest,
     UpdateRoleRequest,
@@ -396,6 +405,145 @@ def toggle_case_task(case_id: str, task_id: str) -> Case:
     if case is None:
         raise HTTPException(status_code=404, detail="Case not found")
     return case
+
+
+# ── MITRE ATT&CK Center ──────────────────────────────────────────────────────
+# Reference taxonomy (which techniques exist) is static public ATT&CK data;
+# every status/count layered on it is computed live from real alerts and
+# simulation_runs in mitre.py — see that module's docstring.
+@app.get("/api/mitre", response_model=MitreCenterResponse)
+def mitre_center(current_user: auth.CurrentUser = Depends(auth.get_current_user)) -> MitreCenterResponse:
+    return mitre.build_center()
+
+
+@app.get("/api/mitre/{technique_id}", response_model=TechniqueDetail)
+def mitre_technique_detail(
+    technique_id: str,
+    current_user: auth.CurrentUser = Depends(auth.get_current_user),
+) -> TechniqueDetail:
+    detail = mitre.build_technique_detail(technique_id)
+    if detail is None:
+        raise HTTPException(status_code=404, detail="Unknown ATT&CK technique")
+    return detail
+
+
+# ── Simulation Center ────────────────────────────────────────────────────────
+# See simulation_catalog.py / simulations.py for the safety model: SOCore
+# never executes any of these tests itself. Starting a run only opens a
+# detection window; PASS/FAIL is decided later, purely from whatever real
+# telemetry actually lands in events/alerts during that window.
+@app.get("/api/simulations", response_model=list[SimulationDefinitionOut])
+def list_simulations(current_user: auth.CurrentUser = Depends(auth.get_current_user)) -> list[SimulationDefinitionOut]:
+    return simulations.list_definitions()
+
+
+@app.get("/api/simulations/summary", response_model=SimulationCenterSummary)
+def simulations_summary(current_user: auth.CurrentUser = Depends(auth.get_current_user)) -> SimulationCenterSummary:
+    return simulations.center_summary()
+
+
+@app.get("/api/simulations/runs", response_model=list[SimulationRun])
+def list_simulation_runs(
+    techniqueId: str | None = None,
+    status: str | None = None,
+    platform: str | None = None,
+    current_user: auth.CurrentUser = Depends(auth.get_current_user),
+) -> list[SimulationRun]:
+    simulations.refresh_running_runs()
+    return store.all_simulation_runs(technique_id=techniqueId, status=status, platform=platform)
+
+
+@app.get("/api/simulations/runs/{run_id}", response_model=SimulationRunDetail)
+def get_simulation_run(
+    run_id: str,
+    current_user: auth.CurrentUser = Depends(auth.get_current_user),
+) -> SimulationRunDetail:
+    run = store.get_simulation_run(run_id)
+    if run is None:
+        raise HTTPException(status_code=404, detail="Simulation run not found")
+    run = simulations.evaluate_run(run)
+    return simulations.build_run_detail(run)
+
+
+@app.get("/api/simulations/{simulation_id}", response_model=SimulationDefinitionOut)
+def get_simulation_definition(
+    simulation_id: str,
+    current_user: auth.CurrentUser = Depends(auth.get_current_user),
+) -> SimulationDefinitionOut:
+    defn = simulation_catalog.get(simulation_id)
+    if defn is None:
+        raise HTTPException(status_code=404, detail="Unknown simulation")
+    return simulations.build_definition_out(defn)
+
+
+@app.post("/api/simulations/{simulation_id}/runs", response_model=SimulationRun)
+def start_simulation_run(
+    simulation_id: str,
+    req: StartSimulationRunRequest,
+    current_user: auth.CurrentUser = Depends(auth.require_l2_or_admin),
+) -> SimulationRun:
+    """Starting a run only records intent and opens a detection window — it
+    triggers no action on any endpoint. RBAC-gated (simulation.run) to
+    l2_analyst/admin, same tier as SOCore's other "touches real
+    infrastructure" actions."""
+    defn = simulation_catalog.get(simulation_id)
+    if defn is None:
+        raise HTTPException(status_code=404, detail="Unknown simulation")
+
+    # Only the catalog's own "custom" template lets the caller pick the
+    # technique/platform/objective — every other entry is a fixed, reviewed
+    # mapping (see simulation_catalog.py) and the request body can't move it
+    # onto a different technique.
+    if defn["custom"]:
+        technique_id = (req.techniqueId or "").strip().upper()
+        if not technique_id:
+            raise HTTPException(status_code=400, detail="techniqueId is required for a custom simulation")
+        if attack_data.find_technique(technique_id) is None:
+            raise HTTPException(status_code=400, detail=f"'{technique_id}' is not a known ATT&CK technique id")
+        platform = req.platform or defn["platform"]
+        objective = req.objective or defn["objective"]
+    else:
+        technique_id = defn["technique_id"]
+        platform = defn["platform"]
+        objective = defn["objective"]
+
+    technique_name, tactic_id, tactic_name = simulations.technique_names(technique_id)
+    window_seconds = req.windowSeconds or defn["default_window_seconds"]
+    if not (30 <= window_seconds <= 3600):
+        raise HTTPException(status_code=400, detail="windowSeconds must be between 30 and 3600")
+
+    run = store.start_simulation_run(
+        simulation_id=defn["id"],
+        simulation_name=defn["name"],
+        technique_id=technique_id,
+        technique_name=technique_name,
+        tactic_id=tactic_id,
+        tactic_name=tactic_name,
+        platform=platform,
+        objective=objective,
+        source_hint=req.sourceHint,
+        window_seconds=window_seconds,
+        started_by=current_user.display_name,
+        started_by_id=current_user.user_id,
+    )
+    logger.info("Simulation run %s started by %s (%s, technique=%s)", run.id, current_user.email, defn["id"], technique_id)
+    actions.send_slack_alert(
+        f"{current_user.display_name} started a detection validation test: {defn['name']} ({technique_id})"
+    )
+    return run
+
+
+@app.post("/api/simulations/runs/{run_id}/mark-executed", response_model=SimulationRun)
+def mark_simulation_run_executed(
+    run_id: str,
+    current_user: auth.CurrentUser = Depends(auth.require_l2_or_admin),
+) -> SimulationRun:
+    run = store.get_simulation_run(run_id)
+    if run is None:
+        raise HTTPException(status_code=404, detail="Simulation run not found")
+    updated = store.mark_run_executed(run_id)
+    assert updated is not None
+    return simulations.evaluate_run(updated)
 
 
 # ── AI assistant chat ────────────────────────────────────────────────────────

@@ -26,6 +26,8 @@ from .models import (
     DecisionRecord,
     Event,
     Profile,
+    SimulationRun,
+    SimulationRunStatus,
     now_hms,
 )
 
@@ -101,6 +103,32 @@ def _row_to_profile(row: dict) -> Profile:
         themePreference=row.get("theme_preference") or "dark",
         timezone=row.get("timezone") or "Asia/Baku",
         createdAt=_iso(row.get("created_at")),
+    )
+
+
+def _row_to_simulation_run(row: dict) -> SimulationRun:
+    return SimulationRun(
+        id=row["id"],
+        simulationId=row["simulation_id"],
+        simulationName=row["simulation_name"],
+        techniqueId=row["technique_id"],
+        techniqueName=row.get("technique_name"),
+        tacticId=row.get("tactic_id"),
+        tacticName=row.get("tactic_name"),
+        platform=row.get("platform") or "",
+        objective=row.get("objective") or "",
+        status=row["status"],
+        sourceHint=row.get("source_hint"),
+        windowSeconds=row["window_seconds"],
+        startedAt=_iso(row.get("started_at")),
+        startedBy=row["started_by"],
+        startedById=row["started_by_id"],
+        executedAt=_iso(row.get("executed_at")) or None,
+        completedAt=_iso(row.get("completed_at")) or None,
+        detectionEventId=row.get("detection_event_id"),
+        detectionAlertId=row.get("detection_alert_id"),
+        detectionLatencySeconds=row.get("detection_latency_seconds"),
+        notes=row.get("notes"),
     )
 
 
@@ -391,6 +419,201 @@ class AlertStore:
             cur.execute("UPDATE cases SET tasks=%s, updated_at=%s WHERE id=%s", (json.dumps(tasks), now_hms(), case_id))
         return self.get_case(case_id)
 
+
+    # ── simulation center: controlled detection-validation runs ────────────
+    def next_simulation_run_id(self) -> str:
+        return self._next_seq_id("simulation_runs", "SIMRUN")
+
+    def start_simulation_run(
+        self,
+        *,
+        simulation_id: str,
+        simulation_name: str,
+        technique_id: str,
+        technique_name: str | None,
+        tactic_id: str | None,
+        tactic_name: str | None,
+        platform: str,
+        objective: str,
+        source_hint: str | None,
+        window_seconds: int,
+        started_by: str,
+        started_by_id: str,
+    ) -> SimulationRun:
+        run_id = self.next_simulation_run_id()
+        with db.get_cursor(commit=True) as cur:
+            cur.execute(
+                """
+                INSERT INTO simulation_runs (
+                    id, simulation_id, simulation_name, technique_id, technique_name,
+                    tactic_id, tactic_name, platform, objective, status,
+                    source_hint, window_seconds, started_by, started_by_id
+                ) VALUES (
+                    %(id)s, %(simulationId)s, %(simulationName)s, %(techniqueId)s, %(techniqueName)s,
+                    %(tacticId)s, %(tacticName)s, %(platform)s, %(objective)s, 'running',
+                    %(sourceHint)s, %(windowSeconds)s, %(startedBy)s, %(startedById)s
+                )
+                """,
+                {
+                    "id": run_id,
+                    "simulationId": simulation_id,
+                    "simulationName": simulation_name,
+                    "techniqueId": technique_id,
+                    "techniqueName": technique_name,
+                    "tacticId": tactic_id,
+                    "tacticName": tactic_name,
+                    "platform": platform,
+                    "objective": objective,
+                    "sourceHint": source_hint,
+                    "windowSeconds": window_seconds,
+                    "startedBy": started_by,
+                    "startedById": started_by_id,
+                },
+            )
+        run = self.get_simulation_run(run_id)
+        assert run is not None
+        return run
+
+    def get_simulation_run(self, run_id: str) -> SimulationRun | None:
+        with db.get_cursor() as cur:
+            cur.execute("SELECT * FROM simulation_runs WHERE id=%s", (run_id,))
+            row = cur.fetchone()
+            return _row_to_simulation_run(row) if row else None
+
+    def mark_run_executed(self, run_id: str) -> SimulationRun | None:
+        with db.get_cursor(commit=True) as cur:
+            cur.execute(
+                "UPDATE simulation_runs SET executed_at=now() WHERE id=%s AND executed_at IS NULL",
+                (run_id,),
+            )
+        return self.get_simulation_run(run_id)
+
+    def finalize_simulation_run(
+        self,
+        run_id: str,
+        *,
+        status: SimulationRunStatus,
+        detection_event_id: str | None = None,
+        detection_alert_id: str | None = None,
+        detection_latency_seconds: int | None = None,
+    ) -> SimulationRun | None:
+        with db.get_cursor(commit=True) as cur:
+            cur.execute(
+                """
+                UPDATE simulation_runs
+                SET status=%s, detection_event_id=%s, detection_alert_id=%s,
+                    detection_latency_seconds=%s, completed_at=now()
+                WHERE id=%s
+                """,
+                (status.value, detection_event_id, detection_alert_id, detection_latency_seconds, run_id),
+            )
+        return self.get_simulation_run(run_id)
+
+    def all_simulation_runs(
+        self,
+        *,
+        simulation_id: str | None = None,
+        technique_id: str | None = None,
+        status: str | None = None,
+        platform: str | None = None,
+        limit: int = 200,
+    ) -> list[SimulationRun]:
+        clauses, params = [], {}
+        if simulation_id:
+            clauses.append("simulation_id = %(simulation_id)s")
+            params["simulation_id"] = simulation_id
+        if technique_id:
+            # Base-normalized: a run recorded against a sub-technique (e.g.
+            # T1110.001) must still surface when something queries by the
+            # base id (e.g. an alert whose mitre_id is only ever "T1110") —
+            # same normalization mitre.py and alerts_for_technique_base use.
+            clauses.append("split_part(technique_id, '.', 1) = split_part(%(technique_id)s, '.', 1)")
+            params["technique_id"] = technique_id
+        if status:
+            clauses.append("status = %(status)s")
+            params["status"] = status
+        if platform:
+            clauses.append("platform = %(platform)s")
+            params["platform"] = platform
+        where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
+        with db.get_cursor() as cur:
+            cur.execute(
+                f"SELECT * FROM simulation_runs {where} ORDER BY started_at DESC LIMIT %(limit)s",
+                {**params, "limit": limit},
+            )
+            return [_row_to_simulation_run(r) for r in cur.fetchall()]
+
+    def runs_for_technique_base(self, technique_base: str) -> list[SimulationRun]:
+        """Matches both the exact id and any of its sub-techniques (T1110 also
+        catches runs recorded against T1110.001)."""
+        with db.get_cursor() as cur:
+            cur.execute(
+                "SELECT * FROM simulation_runs WHERE technique_id = %s OR technique_id LIKE %s "
+                "ORDER BY started_at DESC",
+                (technique_base, technique_base + ".%"),
+            )
+            return [_row_to_simulation_run(r) for r in cur.fetchall()]
+
+    def running_simulation_runs(self) -> list[SimulationRun]:
+        with db.get_cursor() as cur:
+            cur.execute("SELECT * FROM simulation_runs WHERE status='running'")
+            return [_row_to_simulation_run(r) for r in cur.fetchall()]
+
+    def events_created_since(self, since_iso: str, source_hint: str | None = None) -> list[Event]:
+        """Raw events ingested (by DB clock, not the Wazuh-reported timestamp)
+        at or after `since_iso` — the window a simulation run's evaluator
+        searches for evidence. Optionally narrowed to a source IP or agent
+        name the analyst supplied when starting the run."""
+        clauses = ["created_at >= %(since)s"]
+        params: dict = {"since": since_iso}
+        if source_hint:
+            clauses.append("(source_ip = %(hint)s OR agent_name = %(hint)s OR agent_id = %(hint)s)")
+            params["hint"] = source_hint
+        with db.get_cursor() as cur:
+            cur.execute(
+                f"SELECT * FROM events WHERE {' AND '.join(clauses)} ORDER BY created_at ASC",
+                params,
+            )
+            return [_row_to_event(r) for r in cur.fetchall()]
+
+    def alert_coverage_by_technique(self) -> dict[str, dict]:
+        """One grouped query for the whole ATT&CK matrix instead of an N+1 —
+        keyed by the technique's base id (T1110.001 and T1110 both roll up
+        under 'T1110', matching what Wazuh actually reports)."""
+        with db.get_cursor() as cur:
+            cur.execute(
+                """
+                SELECT
+                    split_part(mitre_id, '.', 1) AS technique_base,
+                    count(*) AS alert_count,
+                    min(timestamp) AS first_detected,
+                    max(timestamp) AS last_detected,
+                    array_agg(DISTINCT severity) AS severities
+                FROM alerts
+                WHERE mitre_id IS NOT NULL AND mitre_id <> ''
+                GROUP BY split_part(mitre_id, '.', 1)
+                """
+            )
+            return {r["technique_base"]: dict(r) for r in cur.fetchall()}
+
+    def alerts_for_technique_base(self, technique_base: str, limit: int = 25) -> list[Alert]:
+        with db.get_cursor() as cur:
+            cur.execute(
+                "SELECT * FROM alerts WHERE split_part(mitre_id, '.', 1) = %s "
+                "ORDER BY timestamp DESC LIMIT %s",
+                (technique_base, limit),
+            )
+            return [_row_to_alert(r) for r in cur.fetchall()]
+
+    def events_for_ids(self, event_ids: list[str]) -> list[Event]:
+        if not event_ids:
+            return []
+        with db.get_cursor() as cur:
+            cur.execute(
+                "SELECT * FROM events WHERE id = ANY(%s) ORDER BY created_at DESC",
+                (event_ids,),
+            )
+            return [_row_to_event(r) for r in cur.fetchall()]
 
     # ── profiles: registration approval, roles, personalization ────────────
     def all_profiles(self) -> list[Profile]:

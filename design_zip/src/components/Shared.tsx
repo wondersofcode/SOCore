@@ -1,4 +1,4 @@
-import type { Severity, AlertStatus, CaseStatus, SimStatus } from '../data'
+import type { Severity, AlertStatus, CaseStatus, SimulationRunStatus, TechniqueCoverageStatus } from '../data'
 
 // ── Severity Badge ──────────────────────────────────────────────────────────
 const severityConfig: Record<Severity, { bg: string; text: string; border: string }> = {
@@ -64,18 +64,45 @@ export function CaseStatusPill({ status }: { status: CaseStatus }) {
   )
 }
 
-const simStatusConfig: Record<SimStatus, { bg: string; text: string }> = {
-  Planned: { bg: 'bg-[#6b728020]', text: 'text-[var(--color-info)]' },
-  Scripted: { bg: 'bg-[#4f8cff20]', text: 'text-[#4f8cff]' },
-  Tested: { bg: 'bg-[#f2c94c20]', text: 'text-[#f2c94c]' },
-  Detected: { bg: 'bg-[#30d18a20]', text: 'text-[#30d18a]' },
+const simRunStatusConfig: Record<SimulationRunStatus, { bg: string; text: string; label: string }> = {
+  running: { bg: 'bg-[#9c8bfb20]', text: 'text-[#9c8bfb]', label: 'Running' },
+  passed: { bg: 'bg-[#30d18a20]', text: 'text-[#30d18a]', label: 'Passed' },
+  partial: { bg: 'bg-[#f2c94c20]', text: 'text-[#f2c94c]', label: 'Partial' },
+  failed: { bg: 'bg-[#fb4a6320]', text: 'text-[#fb4a63]', label: 'Failed' },
+  not_observed: { bg: 'bg-[#6b728020]', text: 'text-[var(--color-info)]', label: 'Not Observed' },
 }
 
-export function SimStatusPill({ status }: { status: SimStatus }) {
-  const c = simStatusConfig[status]
+export function SimStatusPill({ status }: { status: SimulationRunStatus }) {
+  const c = simRunStatusConfig[status]
   return (
     <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider ${c.bg} ${c.text}`}>
-      {status}
+      <span className={`w-1.5 h-1.5 rounded-full bg-current ${status === 'running' ? 'pulse-live' : ''}`} />
+      {c.label}
+    </span>
+  )
+}
+
+const techCoverageConfig: Record<TechniqueCoverageStatus, { bg: string; border: string; text: string; label: string; dot: string }> = {
+  detected: { bg: '#30d18a18', border: '#30d18a40', text: '#30d18a', dot: '#30d18a', label: 'Detected' },
+  testing: { bg: '#9c8bfb18', border: '#9c8bfb40', text: '#9c8bfb', dot: '#9c8bfb', label: 'Testing' },
+  tested_passed: { bg: '#4f8cff18', border: '#4f8cff40', text: '#4f8cff', dot: '#4f8cff', label: 'Tested · Passed' },
+  tested_failed: { bg: '#fb4a6318', border: '#fb4a6340', text: '#fb4a63', dot: '#fb4a63', label: 'Tested · Failed' },
+  not_tested: { bg: 'var(--color-surface-2)', border: 'var(--color-border)', text: 'var(--color-text-muted)', dot: 'var(--color-text-muted)', label: 'Not Tested' },
+}
+
+export function techniqueCoverageStyle(status: TechniqueCoverageStatus) {
+  return techCoverageConfig[status]
+}
+
+export function TechniqueStatusPill({ status }: { status: TechniqueCoverageStatus }) {
+  const c = techCoverageConfig[status]
+  return (
+    <span
+      className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider"
+      style={{ background: c.bg, color: c.text }}
+    >
+      <span className="w-1.5 h-1.5 rounded-full" style={{ background: c.dot }} />
+      {c.label}
     </span>
   )
 }
@@ -267,5 +294,64 @@ export function SourceRow({ source }: { source: import('../data').EnrichmentSour
       <span className="text-[10px] font-mono shrink-0" style={{ color: cfg.c }}>{cfg.label}</span>
       <span className="text-[10px] font-mono text-[var(--color-text-muted)] w-14 text-right shrink-0">{source.at}</span>
     </div>
+  )
+}
+
+// ── KPI tile — shared by the ATT&CK Center and Simulation Center headers ────
+export function KpiTile({
+  icon, value, label, sublabel, accent = '#4f8cff',
+}: {
+  icon: React.ReactNode
+  value: React.ReactNode
+  label: string
+  sublabel?: string
+  accent?: string
+}) {
+  return (
+    <div className="relative bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg px-4 py-3.5 overflow-hidden group hover:border-[var(--color-border-bright)] transition-colors">
+      <div className="absolute inset-x-0 top-0 h-px" style={{ background: `linear-gradient(90deg, transparent, ${accent}70, transparent)` }} />
+      <div className="flex items-center gap-3">
+        <div
+          className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 [&_svg]:w-[15px] [&_svg]:h-[15px]"
+          style={{ background: `${accent}18`, color: accent }}
+        >
+          {icon}
+        </div>
+        <div className="min-w-0">
+          <div className="text-xl font-bold font-mono leading-tight text-[var(--color-text-primary)]" style={{ color: accent }}>{value}</div>
+          <div className="text-[10px] uppercase tracking-widest text-[var(--color-info)] font-semibold truncate">{label}</div>
+        </div>
+      </div>
+      {sublabel && <div className="text-[10px] text-[var(--color-text-muted)] mt-1.5 truncate">{sublabel}</div>}
+    </div>
+  )
+}
+
+// ── Section label — small heading used inside detail drawers/panels ─────────
+export function SectionLabel({ icon, title, count }: { icon?: React.ReactNode; title: string; count?: number }) {
+  return (
+    <div className="flex items-center gap-2 mb-2.5">
+      {icon && <span className="text-[var(--color-text-muted)] [&_svg]:w-[13px] [&_svg]:h-[13px]">{icon}</span>}
+      <span className="text-[10px] uppercase tracking-widest text-[var(--color-info)] font-semibold">{title}</span>
+      {count !== undefined && (
+        <span className="text-[10px] font-mono text-[var(--color-text-muted)] bg-[var(--color-surface-2)] border border-[var(--color-border)] rounded-full px-1.5">{count}</span>
+      )}
+    </div>
+  )
+}
+
+// ── Small tag chip — hosts, rule ids, technique refs ─────────────────────────
+export function Chip({ children, color }: { children: React.ReactNode; color?: string }) {
+  return (
+    <span
+      className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-mono border"
+      style={{
+        color: color ?? 'var(--color-text-secondary)',
+        borderColor: color ? `${color}40` : 'var(--color-border)',
+        background: color ? `${color}12` : 'var(--color-surface-2)',
+      }}
+    >
+      {children}
+    </span>
   )
 }

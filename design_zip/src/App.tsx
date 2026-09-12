@@ -82,6 +82,8 @@ function AppShell() {
   const [pausedAt, setPausedAt] = useState<string | null>(null)
   const [selectedAlertId, setSelectedAlertId] = useState<string | null>(null)
   const [preselectEventId, setPreselectEventId] = useState<string | null>(null)
+  const [simulationPrefillTechnique, setSimulationPrefillTechnique] = useState<string | null>(null)
+  const [attackPrefillTechnique, setAttackPrefillTechnique] = useState<string | null>(null)
   const [search, setSearch] = useState('')
 
   const { alerts, pending, live: backendLive, aiLive, lastFetchedAt } = useStore()
@@ -314,7 +316,13 @@ function AppShell() {
           ) : (
           <>
           {screen === 'dashboard' && (
-            <Dashboard onSelectAlert={setSelectedAlertId} onOpenQueue={() => setScreen('alerts')} onOpenApprovals={() => setScreen('approvals')} />
+            <Dashboard
+              onSelectAlert={setSelectedAlertId}
+              onOpenQueue={() => setScreen('alerts')}
+              onOpenApprovals={() => setScreen('approvals')}
+              onOpenAttackCenter={() => setScreen('attack')}
+              onOpenSimulations={() => setScreen('simulations')}
+            />
           )}
           {screen === 'events' && (
             <Events preselectId={preselectEventId} onConsumedPreselect={() => setPreselectEventId(null)} />
@@ -322,8 +330,21 @@ function AppShell() {
           {screen === 'alerts' && <Alerts onSelectAlert={setSelectedAlertId} />}
           {screen === 'approvals' && <Approvals onSelectAlert={setSelectedAlertId} />}
           {screen === 'cases' && <CaseManagement />}
-          {screen === 'simulations' && <SimulationTracker />}
-          {screen === 'attack' && <MitreMatrix />}
+          {screen === 'simulations' && (
+            <SimulationTracker
+              prefillTechniqueId={simulationPrefillTechnique}
+              onConsumedPrefill={() => setSimulationPrefillTechnique(null)}
+              onViewTechnique={id => { setAttackPrefillTechnique(id); setScreen('attack') }}
+            />
+          )}
+          {screen === 'attack' && (
+            <MitreMatrix
+              onSelectAlert={setSelectedAlertId}
+              onTestTechnique={id => { setSimulationPrefillTechnique(id); setScreen('simulations') }}
+              prefillTechniqueId={attackPrefillTechnique}
+              onConsumedPrefill={() => setAttackPrefillTechnique(null)}
+            />
+          )}
           {screen === 'reports' && <Reports />}
           {screen === 'admin' && role === 'admin' && <AdminPanel />}
           {screen === 'settings' && <Settings />}

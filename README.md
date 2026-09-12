@@ -84,7 +84,8 @@ The Wazuh manager forwards every event to the backend's `/api/ingest` via `custo
 - **Real threat intelligence** — MISP IOC lookups and Cortex's VirusTotal/AbuseIPDB analyzers enrich every alert with real reputation data
 - **SOAR automation** — high-risk alerts are automatically handed to a Shuffle workflow
 - **Case management** (in-house, replaces TheHive) — a Kanban board (Open / Investigating / Contained / Closed) with notes, tasks, and linked alerts
-- **MITRE ATT&CK coverage matrix** — a live grid of which techniques have actually been detected, derived from real alert data
+- **MITRE ATT&CK Center** — the full Enterprise matrix with a live coverage status per technique (detected / tested-passed / tested-failed / not-tested), computed from real alerts and simulation runs — plus a technique detail view with its related alerts, cases, and simulation history
+- **Simulation Center** — controlled, evidence-based detection validation: an analyst runs a documented manual test (e.g. an SSH brute-force attempt), SOCore opens a detection window, and the result (PASS/PARTIAL/FAIL/NOT OBSERVED) is decided only from whatever real Wazuh event and alert actually land — SOCore never executes the test itself
 - **3-tier role-based access** — Supabase Auth with `l1_analyst` / `l2_analyst` / `admin`; some actions (e.g. jumping directly into a connected integration's own UI) are gated to L2/Admin; new signups wait for admin approval before they can use the app
 - **Per-user timezone** — every analyst picks their own IANA timezone; every alert/event/case/report timestamp renders in it, not a hardcoded UTC
 - **Persistent storage** — every event, alert, and case lives in Supabase Postgres, survives restarts

@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react'
 import { useStore } from '../store'
-import { simulations } from '../data'
 import { riskColor } from './Shared'
 import { api } from '../api'
 import type { ShiftSummary } from '../api'
+import type { SimulationCenterSummary } from '../data'
 import { useAuth } from '../lib/AuthContext'
 import { formatDateTime } from '../lib/dateFormat'
 
@@ -119,11 +119,14 @@ function AiShiftSummaryCard() {
 
 export default function Reports() {
   const { alerts, decisions } = useStore()
+  const [simSummary, setSimSummary] = useState<SimulationCenterSummary | null>(null)
+
+  useEffect(() => { api.simulationsSummary().then(setSimSummary).catch(() => setSimSummary(null)) }, [])
 
   const total = alerts.length
   const external = alerts.filter(a => a.country !== 'INTERNAL').length
   const avgRisk = Math.round(alerts.reduce((s, a) => s + a.riskScore, 0) / total)
-  const detectedSims = simulations.filter(s => s.status === 'Detected').length
+  const simTerminal = simSummary ? simSummary.passed + simSummary.failed + simSummary.partial + simSummary.notObserved : 0
 
   // Attack types ranked by how much risk they contributed, not just by count.
   const byType = Object.values(
@@ -145,7 +148,12 @@ export default function Reports() {
         <Metric label="Alerts this shift" value={String(total)} note={`${external} external`} />
         <Metric label="Average risk" value={String(avgRisk)} note="across all alerts" color={riskColor(avgRisk)} />
         <Metric label="Decisions logged" value={String(decisions.length)} note="this session" color="#ff9d4d" />
-        <Metric label="Simulations detected" value={`${detectedSims}/${simulations.length}`} note="detection coverage" color="#30d18a" />
+        <Metric
+          label="Simulations passed"
+          value={simSummary && simTerminal > 0 ? `${simSummary.passed}/${simTerminal}` : 'No data'}
+          note={simSummary && simTerminal > 0 ? 'detection validation' : 'run a simulation to measure this'}
+          color="#30d18a"
+        />
       </div>
 
       <div className="grid grid-cols-2 gap-3">

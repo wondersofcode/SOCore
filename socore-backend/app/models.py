@@ -274,3 +274,196 @@ class ShiftSummaryResponse(BaseModel):
     alertCount: int
     generatedAt: str
     cached: bool
+
+
+# ── MITRE ATT&CK Center ──────────────────────────────────────────────────────
+class TechniqueCoverageStatus(str, Enum):
+    detected = "detected"
+    testing = "testing"
+    tested_passed = "tested_passed"
+    tested_failed = "tested_failed"
+    not_tested = "not_tested"
+
+
+class TechniqueCoverage(BaseModel):
+    id: str
+    name: str
+    tacticId: str
+    tacticName: str
+    status: TechniqueCoverageStatus
+    alertCount: int = 0
+    firstDetected: Optional[str] = None
+    lastDetected: Optional[str] = None
+    highestSeverity: Optional[Severity] = None
+    simulationRuns: int = 0
+    simulationPassed: int = 0
+    simulationFailed: int = 0
+    lastTested: Optional[str] = None
+    detectionSuccessRate: Optional[float] = None
+
+
+class MitreTactic(BaseModel):
+    id: str
+    name: str
+    techniques: list[TechniqueCoverage]
+
+
+class MitreCoverageSummary(BaseModel):
+    totalTechniques: int
+    detectedTechniques: int
+    testedTechniques: int
+    notTestedTechniques: int
+    failedTests: int
+    highRiskGaps: int
+    coveragePercent: float
+
+
+class MitreCenterResponse(BaseModel):
+    summary: MitreCoverageSummary
+    tactics: list[MitreTactic]
+
+
+class RelatedAlertSummary(BaseModel):
+    id: str
+    timestamp: str
+    severity: Severity
+    sourceIP: str
+    attackType: str
+    riskScore: int
+    approvalStatus: ApprovalStatus
+    aiExplanation: str = ""
+    proposedAction: Optional[ProposedAction] = None
+    respondedAt: str = ""
+    sourceEventId: Optional[str] = None
+
+
+class RelatedCaseSummary(BaseModel):
+    id: str
+    title: str
+    status: CaseStatus
+    severity: Severity
+
+
+class RelatedEventSummary(BaseModel):
+    id: str
+    timestamp: str
+    sourceIP: str
+    agentName: str
+    ruleId: str
+    ruleDescription: str
+    alertId: Optional[str] = None
+
+
+class RelatedRuleSummary(BaseModel):
+    ruleId: str
+    ruleDescription: str
+    occurrences: int
+
+
+class TechniqueDetail(BaseModel):
+    id: str
+    name: str
+    tacticId: str
+    tacticName: str
+    description: str = ""
+    coverage: TechniqueCoverage
+    relatedAlerts: list[RelatedAlertSummary] = Field(default_factory=list)
+    relatedCases: list[RelatedCaseSummary] = Field(default_factory=list)
+    relatedEvents: list[RelatedEventSummary] = Field(default_factory=list)
+    affectedHosts: list[str] = Field(default_factory=list)
+    relatedRules: list[RelatedRuleSummary] = Field(default_factory=list)
+    relatedSimulationRuns: list["SimulationRun"] = Field(default_factory=list)
+
+
+# ── Simulation Center ────────────────────────────────────────────────────────
+class SimulationRunStatus(str, Enum):
+    running = "running"
+    passed = "passed"
+    partial = "partial"
+    failed = "failed"
+    not_observed = "not_observed"
+
+
+class SimulationDefinitionOut(BaseModel):
+    id: str
+    name: str
+    description: str
+    techniqueId: str
+    techniqueName: Optional[str] = None
+    tacticId: Optional[str] = None
+    tacticName: Optional[str] = None
+    platform: str
+    objective: str
+    instructions: list[str]
+    detectionHint: str
+    defaultWindowSeconds: int
+    custom: bool
+    # Aggregated from real simulation_runs rows for this definition.
+    totalRuns: int = 0
+    passedRuns: int = 0
+    failedRuns: int = 0
+    lastRun: Optional[str] = None
+    lastResult: Optional[SimulationRunStatus] = None
+
+
+class SimulationRun(BaseModel):
+    id: str
+    simulationId: str
+    simulationName: str
+    techniqueId: str
+    techniqueName: Optional[str] = None
+    tacticId: Optional[str] = None
+    tacticName: Optional[str] = None
+    platform: str = ""
+    objective: str = ""
+    status: SimulationRunStatus
+    sourceHint: Optional[str] = None
+    windowSeconds: int
+    startedAt: str
+    startedBy: str
+    startedById: str
+    executedAt: Optional[str] = None
+    completedAt: Optional[str] = None
+    detectionEventId: Optional[str] = None
+    detectionAlertId: Optional[str] = None
+    detectionLatencySeconds: Optional[int] = None
+    notes: Optional[str] = None
+
+
+class StartSimulationRunRequest(BaseModel):
+    techniqueId: Optional[str] = None
+    platform: Optional[str] = None
+    objective: Optional[str] = None
+    sourceHint: Optional[str] = None
+    windowSeconds: Optional[int] = None
+
+
+class SimulationTimelineStage(BaseModel):
+    stage: str
+    status: str = Field(description="'observed' or 'not_observed'")
+    timestamp: Optional[str] = None
+    detail: Optional[str] = None
+    objectId: Optional[str] = None
+
+
+class SimulationRunDetail(BaseModel):
+    run: SimulationRun
+    timeline: list[SimulationTimelineStage]
+    detectionEvent: Optional[Event] = None
+    detectionAlert: Optional[Alert] = None
+
+
+class SimulationCenterSummary(BaseModel):
+    totalRuns: int
+    passed: int
+    failed: int
+    partial: int
+    running: int
+    notObserved: int
+    techniquesTested: int
+    techniquesNeverTested: int
+    detectionRate: Optional[float] = None
+    averageDetectionSeconds: Optional[float] = None
+
+
+TechniqueDetail.model_rebuild()

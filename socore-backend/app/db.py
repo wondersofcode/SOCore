@@ -132,6 +132,37 @@ CREATE TABLE IF NOT EXISTS users (
     created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+-- Simulation Center: controlled detection-validation test runs. The
+-- simulation *definitions* live in code (simulation_catalog.py) as a fixed
+-- allowlist — this table only records what an analyst actually ran and,
+-- later, what the evaluator observed. Nothing here is ever written to mark
+-- a PASS without a matching event_id/alert_id also being recorded.
+CREATE TABLE IF NOT EXISTS simulation_runs (
+    id                          TEXT PRIMARY KEY,
+    simulation_id               TEXT NOT NULL,
+    simulation_name             TEXT NOT NULL,
+    technique_id                TEXT NOT NULL,
+    technique_name              TEXT,
+    tactic_id                   TEXT,
+    tactic_name                 TEXT,
+    platform                    TEXT,
+    objective                   TEXT,
+    status                      TEXT NOT NULL DEFAULT 'running',
+    source_hint                 TEXT,
+    window_seconds              INTEGER NOT NULL DEFAULT 300,
+    started_at                  TIMESTAMPTZ NOT NULL DEFAULT now(),
+    started_by                  TEXT NOT NULL,
+    started_by_id               TEXT NOT NULL,
+    executed_at                 TIMESTAMPTZ,
+    completed_at                TIMESTAMPTZ,
+    detection_event_id          TEXT,
+    detection_alert_id          TEXT,
+    detection_latency_seconds   INTEGER,
+    notes                       TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_simulation_runs_technique ON simulation_runs (technique_id);
+CREATE INDEX IF NOT EXISTS idx_simulation_runs_status ON simulation_runs (status);
+
 -- Backs AlertStore._next_seq_id: one row per (prefix, day), incremented with
 -- a single atomic UPSERT so two near-simultaneous requests (e.g. Wazuh
 -- forwarding the same event twice) can never be handed the same next id —

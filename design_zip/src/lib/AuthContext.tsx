@@ -34,6 +34,16 @@ interface AuthState {
 
 const AuthContext = createContext<AuthState | null>(null)
 
+// ── Local preview bypass ─────────────────────────────────────────────────────
+// Off unless VITE_DEMO_MODE=true is explicitly set in the env this build was
+// started with — never the case in a real deployment (production .env files
+// never set it). Used only to demo the app against a local/throwaway backend
+// without a real Supabase login. The backend it talks to must itself have
+// auth.get_current_user overridden (see scripts used for the demo) to accept
+// this placeholder token — nothing here weakens the real backend's auth.
+const DEMO_MODE = import.meta.env.VITE_DEMO_MODE === 'true'
+const DEMO_TOKEN = 'demo-preview-token'
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null)
   const [role, setRole] = useState<Role | null>(null)
@@ -80,6 +90,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   useEffect(() => {
+    if (DEMO_MODE) {
+      setSession({ access_token: DEMO_TOKEN, user: { id: 'demo-user', email: 'demo.analyst@socore.tech' } } as unknown as Session)
+      fetchRole(DEMO_TOKEN).finally(() => setLoading(false))
+      return
+    }
     supabase.auth.getSession().then(({ data }) => {
       setSession(data.session)
       if (data.session) fetchRole(data.session.access_token)

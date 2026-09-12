@@ -1,8 +1,10 @@
-import { useState } from 'react'
-import { SeverityBadge, AlertStatusPill, RiskScore, AiExplanation, ApprovalPill, SourceRow } from './Shared'
+import { useEffect, useState } from 'react'
+import { SeverityBadge, AlertStatusPill, RiskScore, AiExplanation, ApprovalPill, SourceRow, SimStatusPill } from './Shared'
 import { useStore } from '../store'
 import { useAuth } from '../lib/AuthContext'
 import { formatDateTime, formatTimeOfDay } from '../lib/dateFormat'
+import { api } from '../api'
+import type { SimulationRun } from '../data'
 
 interface TimelineStep {
   label: string
@@ -28,6 +30,14 @@ export default function AlertDetail({
   const [noteSubmitted, setNoteSubmitted] = useState(false)
   const [reason, setReason] = useState('')
   const [showFullAi, setShowFullAi] = useState(false)
+  const [relatedSimRun, setRelatedSimRun] = useState<SimulationRun | null>(null)
+
+  useEffect(() => {
+    if (!alert) return
+    api.simulationRuns({ techniqueId: alert.mitreId })
+      .then(runs => setRelatedSimRun(runs.find(r => r.detectionAlertId === alert.id) ?? null))
+      .catch(() => setRelatedSimRun(null))
+  }, [alert?.id, alert?.mitreId])
 
   if (!alert) return null
 
@@ -66,6 +76,13 @@ export default function AlertDetail({
               <span className="text-[var(--color-text-muted)]">·</span>
               <span className="font-mono text-[var(--color-text-secondary)]">{formatDateTime(alert.timestamp, timezone)}</span>
             </div>
+            {relatedSimRun && (
+              <div className="flex items-center gap-2 text-[11px]">
+                <span className="text-[#9c8bfb]">Detected via simulation</span>
+                <span className="font-mono text-[var(--color-text-muted)]">{relatedSimRun.simulationName}</span>
+                <SimStatusPill status={relatedSimRun.status} />
+              </div>
+            )}
           </div>
           <div className="flex items-start gap-4">
             <RiskScore score={alert.riskScore} size="lg" />

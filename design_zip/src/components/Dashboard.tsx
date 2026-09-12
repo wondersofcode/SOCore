@@ -3,10 +3,10 @@ import {
   AreaChart, Area, XAxis, YAxis,
   CartesianGrid, Tooltip, ResponsiveContainer,
 } from 'recharts'
-import { SeverityBadge, AlertStatusPill, Panel, PanelHeader, RiskBadge } from './Shared'
+import { SeverityBadge, AlertStatusPill, Panel, PanelHeader, RiskBadge, SimStatusPill } from './Shared'
 import AssistantWidget from './AssistantWidget'
 import { riskTrendData } from '../data'
-import type { WazuhRawEvent } from '../data'
+import type { WazuhRawEvent, MitreCoverageSummary, SimulationCenterSummary, SimulationRun } from '../data'
 import { useStore } from '../store'
 import { api } from '../api'
 import type { ConnectionStatus } from '../api'
@@ -172,12 +172,31 @@ function HealthRow({ name, status }: { name: string; status: ConnectionStatus | 
 }
 
 // ── Main Dashboard ───────────────────────────────────────────────────────────
-export default function Dashboard({ onSelectAlert, onOpenQueue, onOpenApprovals }: { onSelectAlert: (id: string) => void; onOpenQueue: () => void; onOpenApprovals: () => void }) {
+export default function Dashboard({
+  onSelectAlert, onOpenQueue, onOpenApprovals, onOpenAttackCenter, onOpenSimulations,
+}: {
+  onSelectAlert: (id: string) => void
+  onOpenQueue: () => void
+  onOpenApprovals: () => void
+  onOpenAttackCenter?: () => void
+  onOpenSimulations?: () => void
+}) {
   const { alerts, cases, pending, live } = useStore()
   const { profile } = useAuth()
   const timezone = profile?.timezone
   const [connections, setConnections] = useState<Record<string, ConnectionStatus>>({})
   useEffect(() => { api.health().then(h => setConnections(h.connections ?? {})).catch(() => {}) }, [])
+
+  // ATT&CK coverage + Simulation Center summaries — real data computed
+  // server-side (see mitre.py / simulations.py), refreshed alongside health.
+  const [mitreSummary, setMitreSummary] = useState<MitreCoverageSummary | null>(null)
+  const [simSummary, setSimSummary] = useState<SimulationCenterSummary | null>(null)
+  const [lastSimRun, setLastSimRun] = useState<SimulationRun | null>(null)
+  useEffect(() => {
+    api.mitreCenter().then(r => setMitreSummary(r.summary)).catch(() => {})
+    api.simulationsSummary().then(setSimSummary).catch(() => {})
+    api.simulationRuns().then(runs => setLastSimRun(runs[0] ?? null)).catch(() => {})
+  }, [])
   // The dashboard shows only the newest slice — full triage lives on the Alerts queue.
   const recent = [...alerts].sort((a, b) => b.timestamp.localeCompare(a.timestamp)).slice(0, 5)
   const openAlerts = alerts.filter(a => a.status !== 'Resolved')
@@ -343,6 +362,53 @@ export default function Dashboard({ onSelectAlert, onOpenQueue, onOpenApprovals 
           <PipelineStage label="Respond" count={pipelineRespond} max={pipelineMax} color="#ff9d4d" chips={respondChips} />
           <PipelineStage label="Track" count={pipelineTrack} max={pipelineMax} color="#30d18a" chips={trackChips} last />
         </div>
+      </Panel>
+
+      {/* ATT&CK coverage + Simulation Center */}
+      <Panel>
+        <PanelHeader title="ATT&CK Coverage & Detection Validation">
+          {onOpenAttackCenter && <button onClick={onOpenAttackCenter} className="text-[10px] text-[#4f8cff] hover:underline">Open ATT&CK Center</button>}
+          {onOpenSimulations && <button onClick={onOpenSimulations} className="text-[10px] text-[#9c8bfb] hover:underline">Open Simulation Center</button>}
+        </PanelHeader>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-4">
+          <MetricTile
+            accent="#30d18a"
+            value={mitreSummary ? `${mitreSummary.coveragePercent}%` : '—'}
+            label="ATT&CK coverage"
+            icon={<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.7"><rect x="2" y="2" width="7" height="7" rx="1" /><rect x="11" y="2" width="7" height="7" rx="1" /><rect x="2" y="11" width="7" height="7" rx="1" /><rect x="11" y="11" width="7" height="7" rx="1" /></svg>}
+          />
+          <MetricTile
+            accent="#ff9d4d"
+            value={mitreSummary ? mitreSummary.highRiskGaps : '—'}
+            label="High-risk gaps"
+            icon={<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round"><circle cx="10" cy="10" r="7.5" /><path d="M10 6v4.5l3 2" /></svg>}
+          />
+          <MetricTile
+            accent="#9c8bfb"
+            value={simSummary ? simSummary.totalRuns : '—'}
+            label="Detection tests run"
+            icon={<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.7"><path d="M4 4l12 6-12 6V4z" /></svg>}
+          />
+          <MetricTile
+            accent="#fb4a63"
+            value={simSummary ? simSummary.failed : '—'}
+            label="Failed detection tests"
+            icon={<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round"><path d="M5 5l10 10M15 5L5 15" /></svg>}
+          />
+        </div>
+        {lastSimRun && (
+          <div className="px-4 pb-4 flex items-center gap-2.5 text-xs">
+            <span className="text-[var(--color-text-muted)]">Most recent test:</span>
+            <span className="text-[var(--color-text-primary)]">{lastSimRun.simulationName}</span>
+            <span className="font-mono text-[#9c8bfb]">{lastSimRun.techniqueId}</span>
+            <SimStatusPill status={lastSimRun.status} />
+          </div>
+        )}
+        {!lastSimRun && simSummary && simSummary.totalRuns === 0 && (
+          <div className="px-4 pb-4 text-xs text-[var(--color-text-muted)]">
+            No detection validation tests have been run yet — open the Simulation Center to run one.
+          </div>
+        )}
       </Panel>
 
       {/* Threat activity chart */}

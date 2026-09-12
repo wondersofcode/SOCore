@@ -111,3 +111,13 @@ def require_admin(user: CurrentUser = Depends(get_current_user)) -> CurrentUser:
     if user.role != "admin":
         raise HTTPException(status_code=403, detail="Admin role required")
     return user
+
+
+def require_l2_or_admin(user: CurrentUser = Depends(get_current_user)) -> CurrentUser:
+    """Gates simulation.run / simulation.mark-executed — starting a controlled
+    detection test on real infrastructure is an L2+ action, same tier as the
+    other "jump into a connected integration" actions the frontend already
+    reserves for l2_analyst/admin."""
+    if user.role not in ("l2_analyst", "admin"):
+        raise HTTPException(status_code=403, detail="L2 analyst or admin role required")
+    return user

@@ -1,6 +1,8 @@
+import { useEffect, useState } from 'react'
 import { useStore } from '../store'
-import { cases, simulations } from '../data'
+import { api } from '../api'
 import { SeverityBadge, RiskBadge, AlertStatusPill, CaseStatusPill, SimStatusPill } from './Shared'
+import type { SimulationRun } from '../data'
 
 export default function SearchResults({
   query, onSelectAlert, onClear,
@@ -9,7 +11,12 @@ export default function SearchResults({
   onSelectAlert: (id: string) => void
   onClear: () => void
 }) {
-  const { alerts } = useStore()
+  const { alerts, cases } = useStore()
+  const [simRuns, setSimRuns] = useState<SimulationRun[]>([])
+
+  useEffect(() => {
+    api.simulationRuns().then(setSimRuns).catch(() => setSimRuns([]))
+  }, [])
 
   const matchedAlerts = alerts.filter(a =>
     [a.id, a.sourceIP, a.attackType, a.mitreId, a.mitreName, a.country, a.asn, a.analyst]
@@ -18,8 +25,8 @@ export default function SearchResults({
   const matchedCases = cases.filter(c =>
     [c.id, c.title, c.assignedTo, ...c.tags].join(' ').toLowerCase().includes(query),
   )
-  const matchedSims = simulations.filter(s =>
-    [s.id, s.name, s.mitreId, s.killChain].join(' ').toLowerCase().includes(query),
+  const matchedSims = simRuns.filter(s =>
+    [s.id, s.simulationName, s.techniqueId, s.tacticName ?? ''].join(' ').toLowerCase().includes(query),
   )
 
   const total = matchedAlerts.length + matchedCases.length + matchedSims.length
@@ -99,8 +106,8 @@ export default function SearchResults({
             {matchedSims.map(s => (
               <div key={s.id} className="flex items-center gap-3 px-4 py-2.5">
                 <div className="flex-1 min-w-0">
-                  <div className="text-xs text-[var(--color-text-primary)] truncate">{s.name}</div>
-                  <div className="text-[10px] font-mono text-[var(--color-text-muted)]">{s.mitreId} · {s.killChain}</div>
+                  <div className="text-xs text-[var(--color-text-primary)] truncate">{s.simulationName}</div>
+                  <div className="text-[10px] font-mono text-[var(--color-text-muted)]">{s.techniqueId} · {s.tacticName ?? s.platform}</div>
                 </div>
                 <SimStatusPill status={s.status} />
               </div>

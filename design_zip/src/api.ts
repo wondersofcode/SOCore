@@ -9,7 +9,11 @@
  *   VITE_API_URL=http://localhost:8000 npm run dev
  * With no env var it defaults to localhost:8000.
  */
-import type { AdminUser, Alert, Case, WazuhRawEvent } from './data'
+import type {
+  AdminUser, Alert, Case, WazuhRawEvent,
+  MitreCenterResponse, TechniqueDetail,
+  SimulationDefinition, SimulationRun, SimulationRunDetail, SimulationCenterSummary,
+} from './data'
 import { supabase } from './lib/supabase'
 
 const BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:8000'
@@ -117,6 +121,35 @@ export const api = {
   // Shift summary report (Reports page) — server caches per window for 5 minutes.
   shiftSummary: (hours: 8 | 12 | 24, refresh = false) =>
     req<ShiftSummary>(`/api/reports/shift-summary?hours=${hours}${refresh ? '&refresh=true' : ''}`, undefined, 20000),
+
+  // MITRE ATT&CK Center — every field is computed server-side from real
+  // alerts/simulation_runs; see socore-backend/app/mitre.py.
+  mitreCenter: () => req<MitreCenterResponse>('/api/mitre'),
+  mitreTechnique: (id: string) => req<TechniqueDetail>(`/api/mitre/${encodeURIComponent(id)}`),
+
+  // Simulation Center — controlled, evidence-based detection validation.
+  // Starting a run never executes anything; see simulation_catalog.py.
+  simulations: () => req<SimulationDefinition[]>('/api/simulations'),
+  simulation: (id: string) => req<SimulationDefinition>(`/api/simulations/${encodeURIComponent(id)}`),
+  simulationsSummary: () => req<SimulationCenterSummary>('/api/simulations/summary'),
+  simulationRuns: (filters: { techniqueId?: string; status?: string; platform?: string } = {}) => {
+    const params = new URLSearchParams()
+    if (filters.techniqueId) params.set('techniqueId', filters.techniqueId)
+    if (filters.status) params.set('status', filters.status)
+    if (filters.platform) params.set('platform', filters.platform)
+    const qs = params.toString()
+    return req<SimulationRun[]>(`/api/simulations/runs${qs ? `?${qs}` : ''}`)
+  },
+  simulationRun: (runId: string) => req<SimulationRunDetail>(`/api/simulations/runs/${encodeURIComponent(runId)}`),
+  startSimulationRun: (
+    simulationId: string,
+    body: { techniqueId?: string; platform?: string; objective?: string; sourceHint?: string; windowSeconds?: number },
+  ) => req<SimulationRun>(`/api/simulations/${encodeURIComponent(simulationId)}/runs`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  }),
+  markSimulationRunExecuted: (runId: string) =>
+    req<SimulationRun>(`/api/simulations/runs/${encodeURIComponent(runId)}/mark-executed`, { method: 'POST' }),
 
   // Downloads the shift report as an .xlsx file and triggers a browser save —
   // not a JSON endpoint, so this bypasses req() and handles the blob directly.

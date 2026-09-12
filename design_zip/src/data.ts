@@ -1,7 +1,6 @@
 export type Severity = 'Critical' | 'High' | 'Medium' | 'Low' | 'Informational'
 export type AlertStatus = 'New' | 'Enriching' | 'Responding' | 'Resolved'
 export type CaseStatus = 'Open' | 'Investigating' | 'Contained' | 'Closed'
-export type SimStatus = 'Planned' | 'Scripted' | 'Tested' | 'Detected'
 export type ApprovalStatus = 'None' | 'Pending' | 'Approved' | 'Rejected'
 export type SourceStatus = 'hit' | 'clean' | 'pending' | 'skipped'
 export type UserRole = 'l1_analyst' | 'l2_analyst' | 'admin'
@@ -121,14 +120,175 @@ export interface Case {
   notes?: CaseNote[]
 }
 
-export interface Simulation {
+// ── MITRE ATT&CK Center ──────────────────────────────────────────────────────
+// Mirrors socore-backend/app/models.py — see mitre.py for how every field is
+// computed live from real alerts/simulation_runs (never fabricated).
+export type TechniqueCoverageStatus = 'detected' | 'testing' | 'tested_passed' | 'tested_failed' | 'not_tested'
+
+export interface TechniqueCoverage {
   id: string
   name: string
-  mitreId: string
-  killChain: string
-  status: SimStatus
-  lastRun: string
-  ttd: string
+  tacticId: string
+  tacticName: string
+  status: TechniqueCoverageStatus
+  alertCount: number
+  firstDetected: string | null
+  lastDetected: string | null
+  highestSeverity: Severity | null
+  simulationRuns: number
+  simulationPassed: number
+  simulationFailed: number
+  lastTested: string | null
+  detectionSuccessRate: number | null
+}
+
+export interface MitreTactic {
+  id: string
+  name: string
+  techniques: TechniqueCoverage[]
+}
+
+export interface MitreCoverageSummary {
+  totalTechniques: number
+  detectedTechniques: number
+  testedTechniques: number
+  notTestedTechniques: number
+  failedTests: number
+  highRiskGaps: number
+  coveragePercent: number
+}
+
+export interface MitreCenterResponse {
+  summary: MitreCoverageSummary
+  tactics: MitreTactic[]
+}
+
+export interface RelatedAlertSummary {
+  id: string
+  timestamp: string
+  severity: Severity
+  sourceIP: string
+  attackType: string
+  riskScore: number
+  approvalStatus: ApprovalStatus
+  aiExplanation: string
+  proposedAction: ProposedAction | null
+  respondedAt: string
+  sourceEventId: string | null
+}
+
+export interface RelatedCaseSummary {
+  id: string
+  title: string
+  status: CaseStatus
+  severity: Severity
+}
+
+export interface RelatedEventSummary {
+  id: string
+  timestamp: string
+  sourceIP: string
+  agentName: string
+  ruleId: string
+  ruleDescription: string
+  alertId: string | null
+}
+
+export interface RelatedRuleSummary {
+  ruleId: string
+  ruleDescription: string
+  occurrences: number
+}
+
+export interface TechniqueDetail {
+  id: string
+  name: string
+  tacticId: string
+  tacticName: string
+  description: string
+  coverage: TechniqueCoverage
+  relatedAlerts: RelatedAlertSummary[]
+  relatedCases: RelatedCaseSummary[]
+  relatedEvents: RelatedEventSummary[]
+  affectedHosts: string[]
+  relatedRules: RelatedRuleSummary[]
+  relatedSimulationRuns: SimulationRun[]
+}
+
+// ── Simulation Center ────────────────────────────────────────────────────────
+export type SimulationRunStatus = 'running' | 'passed' | 'partial' | 'failed' | 'not_observed'
+
+export interface SimulationDefinition {
+  id: string
+  name: string
+  description: string
+  techniqueId: string
+  techniqueName: string | null
+  tacticId: string | null
+  tacticName: string | null
+  platform: string
+  objective: string
+  instructions: string[]
+  detectionHint: string
+  defaultWindowSeconds: number
+  custom: boolean
+  totalRuns: number
+  passedRuns: number
+  failedRuns: number
+  lastRun: string | null
+  lastResult: SimulationRunStatus | null
+}
+
+export interface SimulationRun {
+  id: string
+  simulationId: string
+  simulationName: string
+  techniqueId: string
+  techniqueName: string | null
+  tacticId: string | null
+  tacticName: string | null
+  platform: string
+  objective: string
+  status: SimulationRunStatus
+  sourceHint: string | null
+  windowSeconds: number
+  startedAt: string
+  startedBy: string
+  startedById: string
+  executedAt: string | null
+  completedAt: string | null
+  detectionEventId: string | null
+  detectionAlertId: string | null
+  detectionLatencySeconds: number | null
+  notes: string | null
+}
+
+export interface SimulationTimelineStage {
+  stage: string
+  status: 'observed' | 'not_observed'
+  timestamp: string | null
+  detail: string | null
+  objectId: string | null
+}
+
+export interface SimulationRunDetail {
+  run: SimulationRun
+  timeline: SimulationTimelineStage[]
+  detectionEvent: WazuhRawEvent | null
+  detectionAlert: Alert | null
+}
+
+export interface SimulationCenterSummary {
+  totalRuns: number
+  passed: number
+  failed: number
+  partial: number
+  running: number
+  notObserved: number
+  techniquesTested: number
+  techniquesNeverTested: number
+  detectionRate: number | null
+  averageDetectionSeconds: number | null
 }
 
 const baseAlerts: AlertSeed[] = [
@@ -503,19 +663,6 @@ export const cases: Case[] = [
   },
 ]
 
-export const simulations: Simulation[] = [
-  { id: 'SIM-001', name: 'SSH Brute Force (Hydra)', mitreId: 'T1110.001', killChain: 'Credential Access', status: 'Detected', lastRun: '2024-01-17 14:30', ttd: '00:02:14' },
-  { id: 'SIM-002', name: 'Cobalt Strike Beacon', mitreId: 'T1071.001', killChain: 'Command & Control', status: 'Detected', lastRun: '2024-01-16 11:00', ttd: '00:08:45' },
-  { id: 'SIM-003', name: 'LSASS Memory Dump', mitreId: 'T1003.001', killChain: 'Credential Access', status: 'Tested', lastRun: '2024-01-15 09:15', ttd: '00:15:32' },
-  { id: 'SIM-004', name: 'Scheduled Task Persistence', mitreId: 'T1053.005', killChain: 'Persistence', status: 'Scripted', lastRun: '2024-01-14 16:00', ttd: '—' },
-  { id: 'SIM-005', name: 'Kerberoasting', mitreId: 'T1558.003', killChain: 'Credential Access', status: 'Planned', lastRun: 'Never', ttd: '—' },
-  { id: 'SIM-006', name: 'PowerShell Encoded Command', mitreId: 'T1059.001', killChain: 'Execution', status: 'Detected', lastRun: '2024-01-17 10:45', ttd: '00:01:08' },
-  { id: 'SIM-007', name: 'WMI Lateral Movement', mitreId: 'T1021.006', killChain: 'Lateral Movement', status: 'Tested', lastRun: '2024-01-13 13:20', ttd: '00:22:17' },
-  { id: 'SIM-008', name: 'DNS Tunneling Exfil', mitreId: 'T1048.003', killChain: 'Exfiltration', status: 'Scripted', lastRun: '2024-01-12 15:00', ttd: '—' },
-  { id: 'SIM-009', name: 'NTLM Relay Attack', mitreId: 'T1557.001', killChain: 'Credential Access', status: 'Planned', lastRun: 'Never', ttd: '—' },
-  { id: 'SIM-010', name: 'Registry Run Key Persistence', mitreId: 'T1547.001', killChain: 'Persistence', status: 'Detected', lastRun: '2024-01-17 08:30', ttd: '00:03:55' },
-]
-
 export const riskTrendData = [
   { time: '00:00', score: 42 }, { time: '01:00', score: 38 }, { time: '02:00', score: 35 },
   { time: '03:00', score: 41 }, { time: '04:00', score: 44 }, { time: '05:00', score: 39 },
@@ -530,117 +677,4 @@ export const attackTypeData = [
   { name: 'Lateral Movement', count: 18 },
   { name: 'Persistence', count: 12 },
   { name: 'C2 Beacon', count: 9 },
-]
-
-export const mitreMatrix = [
-  {
-    tactic: 'Reconnaissance',
-    id: 'TA0043',
-    techniques: [
-      { id: 'T1595', name: 'Active Scanning', status: 'detected' },
-      { id: 'T1590', name: 'Gather Host Info', status: 'partial' },
-      { id: 'T1591', name: 'Gather Org Info', status: 'none' },
-      { id: 'T1598', name: 'Phishing for Info', status: 'partial' },
-      { id: 'T1597', name: 'Search Closed Sources', status: 'none' },
-    ],
-  },
-  {
-    tactic: 'Initial Access',
-    id: 'TA0001',
-    techniques: [
-      { id: 'T1566', name: 'Phishing', status: 'detected' },
-      { id: 'T1190', name: 'Exploit Public App', status: 'detected' },
-      { id: 'T1133', name: 'External Remote Svc', status: 'partial' },
-      { id: 'T1078', name: 'Valid Accounts', status: 'partial' },
-      { id: 'T1091', name: 'Removable Media', status: 'missed' },
-    ],
-  },
-  {
-    tactic: 'Execution',
-    id: 'TA0002',
-    techniques: [
-      { id: 'T1059', name: 'Command Interpreter', status: 'detected' },
-      { id: 'T1053', name: 'Scheduled Task', status: 'partial' },
-      { id: 'T1204', name: 'User Execution', status: 'detected' },
-      { id: 'T1047', name: 'WMI', status: 'partial' },
-      { id: 'T1106', name: 'Native API', status: 'none' },
-    ],
-  },
-  {
-    tactic: 'Persistence',
-    id: 'TA0003',
-    techniques: [
-      { id: 'T1547', name: 'Boot Autostart', status: 'detected' },
-      { id: 'T1543', name: 'Create/Modify Service', status: 'partial' },
-      { id: 'T1136', name: 'Create Account', status: 'detected' },
-      { id: 'T1078', name: 'Valid Accounts', status: 'partial' },
-      { id: 'T1505', name: 'Server Software', status: 'none' },
-    ],
-  },
-  {
-    tactic: 'Priv. Escalation',
-    id: 'TA0004',
-    techniques: [
-      { id: 'T1548', name: 'Abuse Elevation', status: 'partial' },
-      { id: 'T1068', name: 'Exploit Vuln', status: 'missed' },
-      { id: 'T1055', name: 'Process Injection', status: 'partial' },
-      { id: 'T1134', name: 'Access Token Manip', status: 'none' },
-      { id: 'T1484', name: 'Domain Policy Mod', status: 'none' },
-    ],
-  },
-  {
-    tactic: 'Defense Evasion',
-    id: 'TA0005',
-    techniques: [
-      { id: 'T1070', name: 'Indicator Removal', status: 'partial' },
-      { id: 'T1036', name: 'Masquerading', status: 'detected' },
-      { id: 'T1055', name: 'Process Injection', status: 'partial' },
-      { id: 'T1562', name: 'Impair Defenses', status: 'missed' },
-      { id: 'T1027', name: 'Obfuscated Files', status: 'partial' },
-    ],
-  },
-  {
-    tactic: 'Credential Access',
-    id: 'TA0006',
-    techniques: [
-      { id: 'T1110', name: 'Brute Force', status: 'detected' },
-      { id: 'T1003', name: 'OS Credentials', status: 'partial' },
-      { id: 'T1558', name: 'Steal Kerberos', status: 'none' },
-      { id: 'T1552', name: 'Unsecured Creds', status: 'partial' },
-      { id: 'T1555', name: 'Creds from Stores', status: 'none' },
-    ],
-  },
-  {
-    tactic: 'Lateral Movement',
-    id: 'TA0008',
-    techniques: [
-      { id: 'T1021', name: 'Remote Services', status: 'detected' },
-      { id: 'T1570', name: 'Lateral Tool Trans.', status: 'partial' },
-      { id: 'T1534', name: 'Internal Spearphish', status: 'none' },
-      { id: 'T1557', name: 'MITM', status: 'none' },
-      { id: 'T1550', name: 'Use Alt Auth Mat.', status: 'partial' },
-    ],
-  },
-  {
-    tactic: 'Command & Control',
-    id: 'TA0011',
-    techniques: [
-      { id: 'T1071', name: 'App Layer Protocol', status: 'detected' },
-      { id: 'T1095', name: 'Non-App Layer Prot.', status: 'partial' },
-      { id: 'T1572', name: 'Protocol Tunneling', status: 'none' },
-      { id: 'T1090', name: 'Proxy', status: 'none' },
-      { id: 'T1102', name: 'Web Service', status: 'partial' },
-    ],
-  },
-  {
-    tactic: 'Exfiltration',
-    id: 'TA0010',
-    techniques: [
-      { id: 'T1041', name: 'Exfil Over C2', status: 'partial' },
-      { id: 'T1048', name: 'Exfil Alt Protocol', status: 'none' },
-      { id: 'T1567', name: 'Exfil to Web Svc', status: 'none' },
-      { id: 'T1029', name: 'Scheduled Transfer', status: 'none' },
-      { id: 'T1030', name: 'Data Size Limits', status: 'none' },
-    ],
-  },
 ]
