@@ -255,11 +255,11 @@ export default function Landing() {
           <a href="#top" className="flex items-center gap-2.5 shrink-0">
             <img src="/logo.png" alt="SOCore" className="h-[22px] w-auto" />
             <span className="font-mono text-[10px] uppercase tracking-[0.12em] pl-2.5 ml-0.5 border-l" style={{ color: TEXT_FAINT, borderColor: BORDER_BRIGHT }}>
-              soc pipeline
+              soc operations
             </span>
           </a>
           <div className="hidden md:flex items-center gap-7 text-sm flex-1" style={{ color: TEXT_DIM }}>
-            <a href="#pipeline" className="hover:text-[#e9eaf2] transition-colors">Pipeline</a>
+            <a href="#pipeline" className="hover:text-[#e9eaf2] transition-colors">SOC Operations</a>
             <a href="#integrations" className="hover:text-[#e9eaf2] transition-colors">Integrations</a>
             <a href="#trust" className="hover:text-[#e9eaf2] transition-colors">Security</a>
             <a href="https://github.com/wondersofcode/SOCore" target="_blank" rel="noreferrer" className="hover:text-[#e9eaf2] transition-colors">Docs</a>
@@ -308,7 +308,7 @@ export default function Landing() {
                 </span>
               </h1>
               <p className="hero-in text-[17px] max-w-[520px] mb-8" style={{ color: TEXT_DIM, animationDelay: '.24s' }}>
-                SOCore brings detection, threat intelligence, investigation and response into one pipeline — every alert reasoned about, every action approved by a human.
+                SOCore brings detection, threat intelligence, investigation and response into unified SOC Operations — every alert reasoned about, every action approved by a human.
               </p>
               <div className="hero-in flex items-center gap-4 flex-wrap mb-7" style={{ animationDelay: '.36s' }}>
                 <button
@@ -443,7 +443,7 @@ export default function Landing() {
           <div className="max-w-[1180px] mx-auto px-7">
             <Reveal className="max-w-[640px] mb-14">
               <span className="inline-flex items-center gap-2 font-mono text-[11.5px] font-semibold tracking-[0.14em] uppercase" style={{ color: ACCENT_2 }}>
-                <span className="w-3.5 h-px" style={{ background: ACCENT }} />The Pipeline
+                <span className="w-3.5 h-px" style={{ background: ACCENT }} />SOC Operations
               </span>
               <h2 className="text-[2rem] sm:text-[2.4rem] font-extrabold tracking-[-0.015em] mt-3.5 text-balance">From raw signal to approved response.</h2>
               <p className="mt-3.5 text-[15.5px]" style={{ color: TEXT_DIM }}>Four stages, wired together, running against live Wazuh telemetry.</p>
@@ -477,7 +477,7 @@ export default function Landing() {
                 <span className="w-3.5 h-px" style={{ background: ACCENT }} />Integrations
               </span>
               <h2 className="text-[2rem] sm:text-[2.4rem] font-extrabold tracking-[-0.015em] mt-3.5 text-balance">Works with the tools already in your stack.</h2>
-              <p className="mt-3.5 text-[15.5px]" style={{ color: TEXT_DIM }}>Every integration shown here is wired into the running pipeline — nothing aspirational.</p>
+              <p className="mt-3.5 text-[15.5px]" style={{ color: TEXT_DIM }}>Every integration shown here is wired into live SOC Operations — nothing aspirational.</p>
             </Reveal>
             <Reveal>
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3.5">
@@ -511,7 +511,7 @@ export default function Landing() {
                   { h: 'Full audit trail', p: 'Every alert, decision and response action is logged against the analyst who made the call.', icon: <><rect x="2" y="2" width="12" height="12" rx="2" /><path d="M5 8h6M5 11h4M5 5h2" /></> },
                   { h: 'Human-approved automation', p: 'Shuffle playbooks queue a response and wait — nothing executes without an explicit approval.', icon: <><path d="M8 1.5l5.5 2.5v4c0 3-2.3 5.6-5.5 6.5C4.8 13.6 2.5 11 2.5 8V4L8 1.5z" /><path d="M5.8 8l1.6 1.6L10.4 6.4" /></> },
                   { h: 'API-first backend', p: 'A FastAPI service backed by Postgres — the same API the console and the pipeline both call.', icon: <><rect x="2" y="2" width="12" height="8" rx="1" /><path d="M5 13.5h6M8 10v3.5" /></> },
-                  { h: 'Open source', p: 'The full pipeline is public on GitHub — read the code, not just the marketing.', icon: <><circle cx="4" cy="4" r="2" /><circle cx="4" cy="12" r="2" /><circle cx="12" cy="8" r="2" /><path d="M4 6v4M5.6 4.9l4.7 2.3M5.6 11.1l4.7-2.3" /></> },
+                  { h: 'Open source', p: 'The full SOC Operations platform is public on GitHub — read the code, not just the marketing.', icon: <><circle cx="4" cy="4" r="2" /><circle cx="4" cy="12" r="2" /><circle cx="12" cy="8" r="2" /><path d="M4 6v4M5.6 4.9l4.7 2.3M5.6 11.1l4.7-2.3" /></> },
                 ].map(item => (
                   <div key={item.h} className="flex gap-3.5">
                     <span className="w-[34px] h-[34px] rounded-lg border flex items-center justify-center shrink-0" style={{ background: SURFACE, borderColor: BORDER_BRIGHT, color: ACCENT_2 }}>
@@ -608,12 +608,12 @@ export default function Landing() {
             <div>
               <img src="/logo.png" alt="SOCore" className="h-5 w-auto mb-3" />
               <p className="text-[13px] max-w-[260px] leading-relaxed" style={{ color: TEXT_FAINT }}>
-                Security operations, unified. An open-source SOC pipeline built by a 4-person team.
+                Security operations, unified. An open-source SOC Operations platform built by a 4-person team.
               </p>
             </div>
             <div>
               <h5 className="font-mono text-[10.5px] tracking-[0.12em] uppercase mb-3.5" style={{ color: TEXT_FAINT }}>Product</h5>
-              <a href="#pipeline" className="block text-[13.5px] mb-2.5 hover:text-[#e9eaf2] transition-colors" style={{ color: TEXT_DIM }}>Pipeline</a>
+              <a href="#pipeline" className="block text-[13.5px] mb-2.5 hover:text-[#e9eaf2] transition-colors" style={{ color: TEXT_DIM }}>SOC Operations</a>
               <a href="#integrations" className="block text-[13.5px] mb-2.5 hover:text-[#e9eaf2] transition-colors" style={{ color: TEXT_DIM }}>Integrations</a>
               <a href="https://socore.tech/app" target="_blank" rel="noreferrer" className="block text-[13.5px] mb-2.5 hover:text-[#e9eaf2] transition-colors" style={{ color: TEXT_DIM }}>Console</a>
             </div>
