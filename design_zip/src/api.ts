@@ -60,6 +60,9 @@ export interface ShiftSummary {
   summary: string
   windowHours: number
   alertCount: number
+  /** Decisions made on an alert that falls inside this window — same window
+   *  alertCount uses, so Reports.tsx can drive both KPIs off one response. */
+  decisionCount: number
   generatedAt: string
   cached: boolean
 }

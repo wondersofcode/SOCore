@@ -299,6 +299,10 @@ class ShiftSummaryResponse(BaseModel):
     summary: str
     windowHours: int
     alertCount: int
+    # Decisions made on an alert that falls inside this window — same
+    # authoritative window the Reports page's "Alerts this shift" KPI now
+    # also uses, so the two numbers can never drift apart.
+    decisionCount: int
     generatedAt: str
     cached: bool
 

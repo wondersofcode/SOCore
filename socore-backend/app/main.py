@@ -642,11 +642,14 @@ def reports_shift_summary(
     if hours not in (8, 12, 24):
         raise HTTPException(status_code=400, detail="hours must be 8, 12 or 24")
     alerts = store.all()
-    summary, cached, alert_count = shift_summary.get_summary(alerts, store.all_cases(), hours, force_refresh=refresh)
+    summary, cached, alert_count, decision_count = shift_summary.get_summary(
+        alerts, store.all_cases(), store.decisions(), hours, force_refresh=refresh
+    )
     return ShiftSummaryResponse(
         summary=summary,
         windowHours=hours,
         alertCount=alert_count,
+        decisionCount=decision_count,
         generatedAt=now_full(),
         cached=cached,
     )
@@ -664,14 +667,15 @@ def reports_export(
         raise HTTPException(status_code=400, detail="hours must be 8, 12 or 24")
     alerts = store.all()
     cases = store.all_cases()
-    summary, _cached, _count = shift_summary.get_summary(alerts, cases, hours)
+    decisions = store.decisions()
+    summary, _cached, _count, _decision_count = shift_summary.get_summary(alerts, cases, decisions, hours)
     # A generous but bounded window of recent events (ordered newest-first) —
     # enough to cover any 8/12/24h window without pulling the entire history.
     recent_events = store.all_events(limit=2000)
     workbook_bytes = report_export.build_workbook(
         alerts=alerts,
         cases=cases,
-        decisions=store.decisions(),
+        decisions=decisions,
         events=recent_events,
         hours=hours,
         summary_text=summary,

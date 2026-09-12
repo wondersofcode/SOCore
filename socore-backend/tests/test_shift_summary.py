@@ -6,8 +6,8 @@ timestamp shapes the old naive-only parser couldn't read.
 """
 from datetime import datetime, timedelta, timezone
 
-from app.models import Alert, AlertStatus, Case, CaseStatus, Severity
-from app.shift_summary import windowed_alerts, windowed_cases
+from app.models import Alert, AlertStatus, Case, CaseStatus, DecisionRecord, Severity
+from app.shift_summary import get_summary, windowed_alerts, windowed_cases, windowed_decision_count
 
 # windowed_alerts()/windowed_cases() cut off relative to the real wall clock
 # (datetime.now(timezone.utc)), not an injectable clock — so every fixture
@@ -120,3 +120,43 @@ def test_windowed_cases_bare_time_of_day_excluded_not_crashed():
 def test_windowed_cases_outside_window_excluded():
     cases = [_case("CASE-1", _hours_ago(48))]
     assert windowed_cases(cases, 24) == []
+
+
+def _decision(alert_id: str) -> DecisionRecord:
+    return DecisionRecord(alertId=alert_id, status="Approved", by="tester", at="12:00:00", reason="test")
+
+
+def test_windowed_decision_count_matches_report_export_convention():
+    # DecisionRecord.at is a bare time with no date, so a decision counts as
+    # "in the window" iff the alert it was made on is — same convention
+    # report_export.py's Decisions sheet already uses.
+    windowed_ids = {"A1", "A2"}
+    decisions = [_decision("A1"), _decision("A2"), _decision("A3")]
+    assert windowed_decision_count(decisions, windowed_ids) == 2
+
+
+def test_windowed_decision_count_zero_when_no_alerts_in_window():
+    assert windowed_decision_count([_decision("A1")], set()) == 0
+
+
+def test_get_summary_alert_and_decision_counts_track_the_selected_window():
+    # Regression for the Reports.tsx KPI bug: "Alerts this shift" and
+    # "Decisions logged" must come from the SAME window as the AI Shift
+    # Summary — this is the backend contract that fix relies on. A1/A2 sit
+    # inside 8h, A3 only inside 24h; only A1's alert has a decision.
+    alerts = [
+        _alert("A1", _hours_ago(1)),
+        _alert("A2", _hours_ago(5)),
+        _alert("A3", _hours_ago(20)),
+    ]
+    decisions = [_decision("A1"), _decision("A3")]
+
+    summary_8h, _cached, count_8h, decisions_8h = get_summary(alerts, [], decisions, 8)
+    summary_24h, _cached, count_24h, decisions_24h = get_summary(alerts, [], decisions, 24)
+
+    assert count_8h == 2  # A1, A2
+    assert decisions_8h == 1  # only A1's decision falls in this window
+    assert count_24h == 3  # A1, A2, A3
+    assert decisions_24h == 2  # both A1's and A3's decisions now qualify
+    assert isinstance(summary_8h, str) and summary_8h
+    assert isinstance(summary_24h, str) and summary_24h

@@ -19,12 +19,25 @@ function Metric({ label, value, note, color = 'var(--color-text-primary)' }: { l
 
 const WINDOWS = [8, 12, 24] as const
 
-function AiShiftSummaryCard() {
+/** Renders the AI Shift Summary card. All state (selected window, fetched
+ * data) lives in the parent Reports component so the KPI cards below can
+ * share the exact same report window and numbers — see Reports() for why. */
+function AiShiftSummaryCard({
+  hours,
+  setHours,
+  data,
+  loading,
+  error,
+  onRefresh,
+}: {
+  hours: 8 | 12 | 24
+  setHours: (h: 8 | 12 | 24) => void
+  data: ShiftSummary | null
+  loading: boolean
+  error: boolean
+  onRefresh: () => void
+}) {
   const { profile } = useAuth()
-  const [hours, setHours] = useState<8 | 12 | 24>(8)
-  const [data, setData] = useState<ShiftSummary | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(false)
   const [exporting, setExporting] = useState(false)
   const [exportError, setExportError] = useState(false)
 
@@ -39,21 +52,6 @@ function AiShiftSummaryCard() {
       setExporting(false)
     }
   }
-
-  const load = async (h: 8 | 12 | 24, refresh: boolean) => {
-    setLoading(true)
-    setError(false)
-    try {
-      const result = await api.shiftSummary(h, refresh)
-      setData(result)
-    } catch {
-      setError(true)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  useEffect(() => { load(hours, false) }, [hours])
 
   return (
     <div className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg px-5 py-4">
@@ -77,7 +75,7 @@ function AiShiftSummaryCard() {
             ))}
           </div>
           <button
-            onClick={() => load(hours, true)}
+            onClick={onRefresh}
             disabled={loading}
             title="Refresh"
             className="w-7 h-7 rounded-lg border border-[var(--color-border)] flex items-center justify-center text-[var(--color-text-secondary)] hover:text-[#4f8cff] hover:border-[#4f8cff40] transition-colors disabled:opacity-50"
@@ -118,14 +116,36 @@ function AiShiftSummaryCard() {
 }
 
 export default function Reports() {
-  const { alerts, decisions } = useStore()
+  const { alerts } = useStore()
   const [simSummary, setSimSummary] = useState<SimulationCenterSummary | null>(null)
+
+  // Single source of truth for every shift/report KPI on this page — the AI
+  // Shift Summary card and the "Alerts this shift"/"Decisions logged" tiles
+  // below all read from this one selected window and its one API response,
+  // so they can never disagree the way they used to (that card windowed by
+  // hours; these tiles silently used all-time alerts.length/decisions.length).
+  const [hours, setHours] = useState<8 | 12 | 24>(8)
+  const [shiftData, setShiftData] = useState<ShiftSummary | null>(null)
+  const [shiftLoading, setShiftLoading] = useState(true)
+  const [shiftError, setShiftError] = useState(false)
+
+  const loadShiftSummary = async (h: 8 | 12 | 24, refresh: boolean) => {
+    setShiftLoading(true)
+    setShiftError(false)
+    try {
+      setShiftData(await api.shiftSummary(h, refresh))
+    } catch {
+      setShiftError(true)
+    } finally {
+      setShiftLoading(false)
+    }
+  }
+
+  useEffect(() => { loadShiftSummary(hours, false) }, [hours])
 
   useEffect(() => { api.simulationsSummary().then(setSimSummary).catch(() => setSimSummary(null)) }, [])
 
-  const total = alerts.length
-  const external = alerts.filter(a => a.country !== 'INTERNAL').length
-  const avgRisk = Math.round(alerts.reduce((s, a) => s + a.riskScore, 0) / total)
+  const avgRisk = Math.round(alerts.reduce((s, a) => s + a.riskScore, 0) / alerts.length)
   const simTerminal = simSummary ? simSummary.passed + simSummary.failed + simSummary.partial + simSummary.notObserved : 0
 
   // Attack types ranked by how much risk they contributed, not just by count.
@@ -142,12 +162,19 @@ export default function Reports() {
 
   return (
     <div className="space-y-4 max-w-5xl">
-      <AiShiftSummaryCard />
+      <AiShiftSummaryCard
+        hours={hours}
+        setHours={setHours}
+        data={shiftData}
+        loading={shiftLoading}
+        error={shiftError}
+        onRefresh={() => loadShiftSummary(hours, true)}
+      />
 
       <div className="grid grid-cols-4 gap-3">
-        <Metric label="Alerts this shift" value={String(total)} note={`${external} external`} />
+        <Metric label="Alerts this shift" value={String(shiftData?.alertCount ?? 0)} note={`${hours}h window`} />
         <Metric label="Average risk" value={String(avgRisk)} note="across all alerts" color={riskColor(avgRisk)} />
-        <Metric label="Decisions logged" value={String(decisions.length)} note="this session" color="#ff9d4d" />
+        <Metric label="Decisions logged" value={String(shiftData?.decisionCount ?? 0)} note={`${hours}h window`} color="#ff9d4d" />
         <Metric
           label="Simulations passed"
           value={simSummary && simTerminal > 0 ? `${simSummary.passed}/${simTerminal}` : 'No data'}

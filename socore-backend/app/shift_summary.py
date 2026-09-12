@@ -13,7 +13,7 @@ from collections import Counter
 from datetime import datetime, timezone
 
 from . import groq_client
-from .models import Alert, Case
+from .models import Alert, Case, DecisionRecord
 from .timeutils import parse_timestamp
 
 logger = logging.getLogger("socore.shift_summary")
@@ -40,9 +40,18 @@ def windowed_cases(cases: list[Case], hours: int) -> list[Case]:
     return [c for c in cases if (dt := parse_timestamp(c.createdAt)) and dt.timestamp() >= cutoff]
 
 
-def _facts(alerts: list[Alert], cases: list[Case], hours: int) -> dict:
+def windowed_decision_count(decisions: list[DecisionRecord], windowed_alert_ids: set[str]) -> int:
+    """Decisions don't carry a full date (DecisionRecord.at is a bare
+    'HH:MM:SS'), so — same convention report_export.py's Decisions sheet
+    already uses — a decision is 'in the window' iff the alert it was made
+    on is, not by parsing its own timestamp."""
+    return sum(1 for d in decisions if d.alertId in windowed_alert_ids)
+
+
+def _facts(alerts: list[Alert], cases: list[Case], decisions: list[DecisionRecord], hours: int) -> dict:
     windowed = windowed_alerts(alerts, hours)
     opened_cases = windowed_cases(cases, hours)
+    windowed_ids = {a.id for a in windowed}
 
     severity_counts = Counter(a.severity.value for a in windowed)
     country_counts = Counter(a.country for a in windowed if a.country and a.country != "INTERNAL")
@@ -56,6 +65,7 @@ def _facts(alerts: list[Alert], cases: list[Case], hours: int) -> dict:
         "topSourceCountry": top_country,
         "topAttackTypes": [t for t, _ in attack_type_counts.most_common(3)],
         "casesOpened": len(opened_cases),
+        "decisionCount": windowed_decision_count(decisions, windowed_ids),
         "avgRiskScore": round(sum(a.riskScore for a in windowed) / len(windowed), 1) if windowed else 0,
     }
 
@@ -73,14 +83,22 @@ def _mock_summary(facts: dict) -> str:
     )
 
 
-def get_summary(alerts: list[Alert], cases: list[Case], hours: int, force_refresh: bool = False) -> tuple[str, bool, int]:
-    """Returns (summary, was_cached, alertCount)."""
+def get_summary(
+    alerts: list[Alert],
+    cases: list[Case],
+    decisions: list[DecisionRecord],
+    hours: int,
+    force_refresh: bool = False,
+) -> tuple[str, bool, int, int]:
+    """Returns (summary, was_cached, alertCount, decisionCount)."""
     now = time.time()
-    facts = _facts(alerts, cases, hours)  # cheap (no Groq call) — always recomputed for an accurate alertCount
+    # Cheap (no Groq call) — always recomputed so alertCount/decisionCount
+    # stay accurate even when the cached summary text is reused below.
+    facts = _facts(alerts, cases, decisions, hours)
 
     cached = _cache.get(hours)
     if not force_refresh and cached and now - cached[0] < _CACHE_TTL_SECONDS:
-        return cached[1], True, facts["alertCount"]
+        return cached[1], True, facts["alertCount"], facts["decisionCount"]
 
     messages = [
         {"role": "system", "content": _SYSTEM_INSTRUCTIONS},
@@ -88,4 +106,4 @@ def get_summary(alerts: list[Alert], cases: list[Case], hours: int, force_refres
     ]
     summary = groq_client.chat(messages, max_tokens=300) or _mock_summary(facts)
     _cache[hours] = (now, summary)
-    return summary, False, facts["alertCount"]
+    return summary, False, facts["alertCount"], facts["decisionCount"]
