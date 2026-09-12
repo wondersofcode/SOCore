@@ -14,6 +14,7 @@ from datetime import datetime, timezone
 
 from . import groq_client
 from .models import Alert, Case
+from .timeutils import parse_timestamp
 
 logger = logging.getLogger("socore.shift_summary")
 
@@ -29,34 +30,14 @@ _SYSTEM_INSTRUCTIONS = (
 )
 
 
-def parse_naive_utc(ts: str) -> datetime | None:
-    """Alert.timestamp is 'YYYY-MM-DD HH:MM:SS', implicitly UTC, no marker."""
-    if not ts:
-        return None
-    try:
-        return datetime.strptime(ts, "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc)
-    except ValueError:
-        return None
-
-
-def parse_iso(ts: str) -> datetime | None:
-    if not ts:
-        return None
-    try:
-        dt = datetime.fromisoformat(ts)
-        return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
-    except ValueError:
-        return None
-
-
 def windowed_alerts(alerts: list[Alert], hours: int) -> list[Alert]:
     cutoff = datetime.now(timezone.utc).timestamp() - hours * 3600
-    return [a for a in alerts if (dt := parse_naive_utc(a.timestamp)) and dt.timestamp() >= cutoff]
+    return [a for a in alerts if (dt := parse_timestamp(a.timestamp)) and dt.timestamp() >= cutoff]
 
 
 def windowed_cases(cases: list[Case], hours: int) -> list[Case]:
     cutoff = datetime.now(timezone.utc).timestamp() - hours * 3600
-    return [c for c in cases if (dt := parse_iso(c.createdAt)) and dt.timestamp() >= cutoff]
+    return [c for c in cases if (dt := parse_timestamp(c.createdAt)) and dt.timestamp() >= cutoff]
 
 
 def _facts(alerts: list[Alert], cases: list[Case], hours: int) -> dict:

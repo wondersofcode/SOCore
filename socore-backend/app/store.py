@@ -17,6 +17,7 @@ from typing import Callable
 from . import db
 from .models import (
     Alert,
+    AlertNote,
     AlertStatus,
     ApprovalStatus,
     Case,
@@ -28,6 +29,7 @@ from .models import (
     Profile,
     SimulationRun,
     SimulationRunStatus,
+    now_full,
     now_hms,
 )
 
@@ -70,6 +72,20 @@ def _row_to_alert(row: dict) -> Alert:
         approvalStatus=row["approval_status"],
         sources=row["sources"] or [],
         sourceEventId=row.get("source_event_id"),
+        createdAt=_iso(row.get("created_at")),
+        falsePositive=row.get("false_positive", False),
+        falsePositiveReason=row.get("false_positive_reason") or "",
+        falsePositiveBy=row.get("false_positive_by") or "",
+        falsePositiveAt=row.get("false_positive_at") or "",
+    )
+
+
+def _row_to_alert_note(row: dict) -> AlertNote:
+    return AlertNote(
+        id=row["id"],
+        alertId=row["alert_id"],
+        author=row["author"],
+        text=row["text"],
         createdAt=_iso(row.get("created_at")),
     )
 
@@ -287,7 +303,40 @@ class AlertStore:
             return _row_to_alert(row) if row else None
 
     def pending(self) -> list[Alert]:
-        return [a for a in self.all() if a.approvalStatus == ApprovalStatus.pending]
+        # A false-positive disposition takes an alert out of the decision
+        # queue even if it was sitting on a still-Pending proposed action —
+        # there's nothing left to approve/reject once it's been dispositioned.
+        return [a for a in self.all() if a.approvalStatus == ApprovalStatus.pending and not a.falsePositive]
+
+    def mark_false_positive(self, alert_id: str, reason: str, analyst: str) -> Alert | None:
+        """Records a false-positive disposition. Distinct from decide()/
+        approvalStatus: this says the detection itself wasn't real, not that
+        a proposed automated response was rejected. Never deletes the alert,
+        its raw event, or any prior decision — only adds to the audit trail
+        (a new 'False Positive' decisions row, kept separate from
+        'Approved'/'Rejected'). Idempotent: re-marking an already-dispositioned
+        alert is a no-op rather than adding duplicate audit entries."""
+        alert = self.get(alert_id)
+        if alert is None:
+            return None
+        if alert.falsePositive:
+            return alert
+        at = now_full()
+        with db.get_cursor(commit=True) as cur:
+            cur.execute(
+                """
+                UPDATE alerts
+                SET false_positive=true, false_positive_reason=%s, false_positive_by=%s,
+                    false_positive_at=%s, status=%s
+                WHERE id=%s
+                """,
+                (reason, analyst, at, AlertStatus.resolved.value, alert_id),
+            )
+            cur.execute(
+                "INSERT INTO decisions (alert_id, status, by_whom, at, reason) VALUES (%s,%s,%s,%s,%s)",
+                (alert_id, "False Positive", analyst, now_hms(), reason),
+            )
+        return self.get(alert_id)
 
     def decisions(self) -> list[DecisionRecord]:
         with db.get_cursor() as cur:
@@ -338,12 +387,33 @@ class AlertStore:
             row = cur.fetchone()
             return _row_to_event(row) if row else None
 
+    # ── alert notes: persistent, one row per note (not frontend-only state) ─
+    def add_alert_note(self, alert_id: str, author: str, text: str) -> AlertNote:
+        with db.get_cursor(commit=True) as cur:
+            cur.execute(
+                "INSERT INTO alert_notes (alert_id, author, text) VALUES (%s,%s,%s) RETURNING *",
+                (alert_id, author, text),
+            )
+            row = cur.fetchone()
+        return _row_to_alert_note(row)
+
+    def alert_notes(self, alert_id: str) -> list[AlertNote]:
+        with db.get_cursor() as cur:
+            cur.execute(
+                "SELECT * FROM alert_notes WHERE alert_id=%s ORDER BY created_at DESC",
+                (alert_id,),
+            )
+            return [_row_to_alert_note(r) for r in cur.fetchall()]
+
     # ── cases ────────────────────────────────────────────────────────────
     def open_case_from_alert(self, alert_id: str, title: str | None, assigned_to: str) -> Case | None:
         alert = self.get(alert_id)
         if alert is None:
             return None
-        now = now_hms()
+        # Full date+time, not now_hms() — createdAt/updatedAt drive
+        # windowed_cases() (shift_summary.py/report_export.py), which needs a
+        # real date to filter on, not just a bare time-of-day string.
+        now = now_full()
         tasks = [
             {"id": "t1", "title": "Confirm the indicator against threat intel", "done": False},
             {"id": "t2", "title": "Determine scope — is only this host affected?", "done": False},
@@ -381,20 +451,32 @@ class AlertStore:
             row = cur.fetchone()
             return _row_to_case(row) if row else None
 
+    def get_case_for_alert(self, alert_id: str) -> Case | None:
+        """Most recent case that already links this alert, if any — used to
+        make 'Escalate to Case' idempotent per alert (a double-click, or two
+        analysts escalating the same alert, must not create two cases)."""
+        with db.get_cursor() as cur:
+            cur.execute(
+                "SELECT * FROM cases WHERE alert_ids @> %s::jsonb ORDER BY id DESC LIMIT 1",
+                (json.dumps([alert_id]),),
+            )
+            row = cur.fetchone()
+            return _row_to_case(row) if row else None
+
     def update_case(self, case_id: str, status: CaseStatus | None, assigned_to: str | None) -> Case | None:
         case = self.get_case(case_id)
         if case is None:
             return None
         with db.get_cursor(commit=True) as cur:
             if status is not None:
-                cur.execute("UPDATE cases SET status=%s, updated_at=%s WHERE id=%s", (status.value, now_hms(), case_id))
+                cur.execute("UPDATE cases SET status=%s, updated_at=%s WHERE id=%s", (status.value, now_full(), case_id))
                 if status in (CaseStatus.closed, CaseStatus.contained):
                     cur.execute(
                         "UPDATE alerts SET status=%s WHERE id = ANY(%s)",
                         (AlertStatus.resolved.value, case.alertIds),
                     )
             if assigned_to is not None:
-                cur.execute("UPDATE cases SET assigned_to=%s, updated_at=%s WHERE id=%s", (assigned_to, now_hms(), case_id))
+                cur.execute("UPDATE cases SET assigned_to=%s, updated_at=%s WHERE id=%s", (assigned_to, now_full(), case_id))
         return self.get_case(case_id)
 
     def add_case_note(self, case_id: str, author: str, text: str) -> Case | None:
@@ -404,7 +486,7 @@ class AlertStore:
         notes = [n.model_dump() for n in case.notes]
         notes.insert(0, {"author": author, "text": text, "at": now_hms()})
         with db.get_cursor(commit=True) as cur:
-            cur.execute("UPDATE cases SET notes=%s, updated_at=%s WHERE id=%s", (json.dumps(notes), now_hms(), case_id))
+            cur.execute("UPDATE cases SET notes=%s, updated_at=%s WHERE id=%s", (json.dumps(notes), now_full(), case_id))
         return self.get_case(case_id)
 
     def toggle_task(self, case_id: str, task_id: str) -> Case | None:
@@ -416,7 +498,7 @@ class AlertStore:
             if t["id"] == task_id:
                 t["done"] = not t["done"]
         with db.get_cursor(commit=True) as cur:
-            cur.execute("UPDATE cases SET tasks=%s, updated_at=%s WHERE id=%s", (json.dumps(tasks), now_hms(), case_id))
+            cur.execute("UPDATE cases SET tasks=%s, updated_at=%s WHERE id=%s", (json.dumps(tasks), now_full(), case_id))
         return self.get_case(case_id)
 
 

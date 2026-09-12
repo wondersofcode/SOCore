@@ -23,6 +23,7 @@ from openpyxl.worksheet.worksheet import Worksheet
 
 from . import shift_summary
 from .models import Alert, Case, DecisionRecord, Event
+from .timeutils import parse_timestamp
 
 # ── Palette — deep navy + restrained accent, semantic color used sparingly ──
 NAVY = "0B2545"
@@ -52,6 +53,7 @@ _APPROVAL_COLORS = {
     "Approved": ("D1FAE5", "065F46"),
     "Rejected": ("FEE2E2", "991B1B"),
     "None": ("E2E8F0", "475569"),
+    "False Positive": ("FDE68A", "92400E"),
 }
 
 _MIN_COL_WIDTH = 12
@@ -318,7 +320,7 @@ def _build_executive_summary(
     if windowed:
         bucket_counts: Counter[str] = Counter()
         for a in windowed:
-            dt = shift_summary.parse_naive_utc(a.timestamp)
+            dt = parse_timestamp(a.timestamp)
             if dt:
                 bucket_counts[dt.strftime("%m-%d %H:00")] += 1
         cursor = window_start.replace(minute=0, second=0, microsecond=0)
@@ -415,7 +417,7 @@ def build_workbook(
     cutoff = datetime.now(timezone.utc).timestamp() - hours * 3600
     windowed_events = [
         e for e in events
-        if (dt := shift_summary.parse_naive_utc(e.timestamp)) and dt.timestamp() >= cutoff
+        if (dt := parse_timestamp(e.timestamp)) and dt.timestamp() >= cutoff
     ]
 
     wb = Workbook()
@@ -437,6 +439,7 @@ def build_workbook(
         "MITRE ID", "MITRE Technique", "Country", "ASN",
         "VirusTotal Score", "AbuseIPDB Score", "MISP Match",
         "Risk Score", "Status", "Approval Status", "Proposed Action", "Analyst",
+        "False Positive", "False Positive Reason",
     ]
     alert_rows = [
         [
@@ -444,6 +447,7 @@ def build_workbook(
             a.mitreId, a.mitreName, a.country or "—", a.asn or "—",
             a.vtScore, a.abuseScore, _misp_match(a),
             a.riskScore, a.status.value, a.approvalStatus.value, _proposed_action(a), a.analyst,
+            "Yes" if a.falsePositive else "No", a.falsePositiveReason or "—",
         ]
         for a in windowed
     ]
@@ -454,6 +458,7 @@ def build_workbook(
             3: _SEVERITY_COLORS,   # Severity
             14: _STATUS_COLORS,    # Status
             15: _APPROVAL_COLORS,  # Approval Status
+            18: {"Yes": ("FDE68A", "92400E"), "No": ("E2E8F0", "475569")},  # False Positive
         },
     )
     # Risk Score is numeric, not a severity label, so it can't use the

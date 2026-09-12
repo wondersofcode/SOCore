@@ -24,14 +24,17 @@ from . import mitre_attack_data as attack_data
 from . import simulation_catalog
 from .correlation import correlate
 from .models import (
+    AddAlertNoteRequest,
     AddNoteRequest,
     Alert,
+    AlertNote,
     ApprovalDecision,
     AssistantChatRequest,
     AssistantChatResponse,
     Case,
     CreateCaseRequest,
     Event,
+    FalsePositiveRequest,
     MitreCenterResponse,
     Profile,
     ShiftSummaryResponse,
@@ -285,6 +288,57 @@ def list_pending() -> list[Alert]:
     return store.pending()
 
 
+# ── Alert notes — persistent, one row per note (Alert Detail's "Save Note") ─
+@app.get("/api/alerts/{alert_id}/notes", response_model=list[AlertNote])
+def list_alert_notes(
+    alert_id: str,
+    current_user: auth.CurrentUser = Depends(auth.get_current_user),
+) -> list[AlertNote]:
+    if store.get(alert_id) is None:
+        raise HTTPException(status_code=404, detail="Alert not found")
+    return store.alert_notes(alert_id)
+
+
+@app.post("/api/alerts/{alert_id}/notes", response_model=AlertNote)
+def add_alert_note(
+    alert_id: str,
+    req: AddAlertNoteRequest,
+    current_user: auth.CurrentUser = Depends(auth.get_current_user),
+) -> AlertNote:
+    """Author is always the authenticated caller's identity, never a
+    client-supplied field — mirrors /api/cases/{id}/notes."""
+    if store.get(alert_id) is None:
+        raise HTTPException(status_code=404, detail="Alert not found")
+    text = req.text.strip()
+    if not text:
+        raise HTTPException(status_code=400, detail="Note text is required")
+    note = store.add_alert_note(alert_id, current_user.display_name, text)
+    logger.info("Note added to alert %s by %s", alert_id, current_user.email)
+    return note
+
+
+# ── False-positive disposition ──────────────────────────────────────────────
+@app.post("/api/alerts/{alert_id}/false-positive", response_model=Alert)
+def mark_false_positive(
+    alert_id: str,
+    req: FalsePositiveRequest,
+    current_user: auth.CurrentUser = Depends(auth.get_current_user),
+) -> Alert:
+    """Marks the alert itself as a false positive — distinct from rejecting a
+    proposed automated response (approvalStatus). Never deletes the alert,
+    its raw event, or prior decisions; adds a 'False Positive' entry to the
+    audit trail (/api/decisions) instead."""
+    reason = req.reason.strip()
+    if not reason:
+        raise HTTPException(status_code=400, detail="A reason is required to mark an alert as a false positive")
+    updated = store.mark_false_positive(alert_id, reason, current_user.display_name)
+    if updated is None:
+        raise HTTPException(status_code=404, detail="Alert not found")
+    actions.send_slack_alert(f"{current_user.display_name} marked {alert_id} as a false positive: {reason}")
+    logger.info("Alert %s marked false positive by %s", alert_id, current_user.email)
+    return updated
+
+
 # ── Raw event history — independent of whatever Alert an event became ──────
 @app.get("/api/events", response_model=list[Event])
 def list_events(limit: int = 50, offset: int = 0) -> list[Event]:
@@ -370,7 +424,13 @@ def create_case(
     req: CreateCaseRequest,
     current_user: auth.CurrentUser = Depends(auth.get_current_user),
 ) -> Case:
-    """Open a case from an alert — the analyst's 'Escalate to case' action."""
+    """Open a case from an alert — the analyst's 'Escalate to case' action.
+    Idempotent per alert: if a case already links this alert (a double-click,
+    or a second analyst escalating the same alert), that existing case is
+    returned instead of creating a duplicate."""
+    existing = store.get_case_for_alert(req.alertId)
+    if existing is not None:
+        return existing
     case = store.open_case_from_alert(req.alertId, req.title, current_user.display_name)
     if case is None:
         raise HTTPException(status_code=404, detail="Alert not found")

@@ -135,6 +135,15 @@ class Alert(BaseModel):
     # explain pipeline took for this alert — unlike `timestamp`/`detectedAt`,
     # which are both copied from the same source string and never differ.
     createdAt: str = ""
+    # False-positive disposition — deliberately separate from approvalStatus:
+    # approvalStatus tracks whether a *proposed automated response* was
+    # approved/rejected, while this tracks whether the alert itself was a
+    # real detection. The raw event and full decisions/audit history are
+    # never deleted when this is set.
+    falsePositive: bool = False
+    falsePositiveReason: str = ""
+    falsePositiveBy: str = ""
+    falsePositiveAt: str = ""
 
 
 # ── Case management (replaces TheHive) ──────────────────────────────────────
@@ -202,6 +211,24 @@ class DecisionRecord(BaseModel):
     status: str
     by: str
     at: str
+    reason: str
+
+
+# ── Alert notes (persistent, distinct from Case notes) ──────────────────────
+class AlertNote(BaseModel):
+    id: int
+    alertId: str
+    author: str
+    text: str
+    createdAt: str
+
+
+class AddAlertNoteRequest(BaseModel):
+    text: str
+
+
+# ── Alert false-positive disposition ────────────────────────────────────────
+class FalsePositiveRequest(BaseModel):
     reason: str
 
 

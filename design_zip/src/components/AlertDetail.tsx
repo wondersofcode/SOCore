@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react'
-import { SeverityBadge, AlertStatusPill, RiskScore, AiExplanation, ApprovalPill, SourceRow, SimStatusPill } from './Shared'
+import { SeverityBadge, AlertStatusPill, RiskScore, AiExplanation, ApprovalPill, SourceRow, SimStatusPill, Chip } from './Shared'
 import { useStore } from '../store'
 import { useAuth } from '../lib/AuthContext'
 import { formatDateTime, formatTimeOfDay } from '../lib/dateFormat'
 import { api } from '../api'
-import type { SimulationRun } from '../data'
+import type { AlertNote, SimulationRun } from '../data'
 
 interface TimelineStep {
   label: string
@@ -22,15 +22,27 @@ export default function AlertDetail({
   onClose: () => void
   onViewEvent?: (eventId: string) => void
 }) {
-  const { alerts, decide } = useStore()
+  const { alerts, cases, decide, markFalsePositive, createCase, currentUser, live } = useStore()
   const { profile } = useAuth()
   const timezone = profile?.timezone
   const alert = alerts.find(a => a.id === alertId)
   const [note, setNote] = useState('')
   const [noteSubmitted, setNoteSubmitted] = useState(false)
+  const [noteBusy, setNoteBusy] = useState(false)
+  const [noteError, setNoteError] = useState<string | null>(null)
+  const [notes, setNotes] = useState<AlertNote[]>([])
   const [reason, setReason] = useState('')
   const [showFullAi, setShowFullAi] = useState(false)
   const [relatedSimRun, setRelatedSimRun] = useState<SimulationRun | null>(null)
+
+  const [escalateBusy, setEscalateBusy] = useState(false)
+  const [escalateError, setEscalateError] = useState<string | null>(null)
+  const existingCase = cases.find(c => c.alertIds?.includes(alertId))
+
+  const [fpOpen, setFpOpen] = useState(false)
+  const [fpReason, setFpReason] = useState('')
+  const [fpBusy, setFpBusy] = useState(false)
+  const [fpError, setFpError] = useState<string | null>(null)
 
   useEffect(() => {
     if (!alert) return
@@ -39,7 +51,54 @@ export default function AlertDetail({
       .catch(() => setRelatedSimRun(null))
   }, [alert?.id, alert?.mitreId])
 
+  useEffect(() => {
+    if (!alert) return
+    api.alertNotes(alert.id).then(setNotes).catch(() => setNotes([]))
+  }, [alert?.id])
+
   if (!alert) return null
+
+  const handleEscalate = async () => {
+    if (existingCase || escalateBusy) return
+    setEscalateBusy(true)
+    setEscalateError(null)
+    const created = await createCase(alert.id, undefined, currentUser)
+    setEscalateBusy(false)
+    if (!created) setEscalateError(live ? 'Could not create the case. Try again.' : 'Backend not connected.')
+  }
+
+  const handleSaveNote = async () => {
+    const text = note.trim()
+    if (!text || noteBusy) return
+    setNoteBusy(true)
+    setNoteError(null)
+    try {
+      const saved = await api.addAlertNote(alert.id, text)
+      setNotes(prev => [saved, ...prev])
+      setNote('')
+      setNoteSubmitted(true)
+      setTimeout(() => setNoteSubmitted(false), 2500)
+    } catch {
+      setNoteError('Could not save the note. Try again.')
+    } finally {
+      setNoteBusy(false)
+    }
+  }
+
+  const handleConfirmFalsePositive = async () => {
+    const text = fpReason.trim()
+    if (!text || fpBusy) return
+    setFpBusy(true)
+    setFpError(null)
+    const updated = await markFalsePositive(alert.id, text)
+    setFpBusy(false)
+    if (updated) {
+      setFpOpen(false)
+      setFpReason('')
+    } else {
+      setFpError(live ? 'Could not save this decision. Try again.' : 'Backend not connected.')
+    }
+  }
 
   const steps: TimelineStep[] = [
     { label: 'Detected', time: formatTimeOfDay(alert.detectedAt, alert.timestamp, timezone), done: true, color: '#4f8cff' },
@@ -67,6 +126,7 @@ export default function AlertDetail({
               <SeverityBadge severity={alert.severity} />
               <AlertStatusPill status={alert.status} />
               <ApprovalPill status={alert.approvalStatus} />
+              {alert.falsePositive && <Chip color="#f2c94c">False Positive</Chip>}
             </div>
             <div className="text-[var(--color-text-primary)] font-semibold text-lg leading-tight">{alert.attackType}</div>
             <div className="flex items-center gap-3 text-xs">
@@ -106,8 +166,8 @@ export default function AlertDetail({
             onToggle={() => setShowFullAi(v => !v)}
           />
 
-          {/* Pending decision */}
-          {alert.approvalStatus === 'Pending' && alert.proposedAction && (
+          {/* Pending decision — not shown once dispositioned as a false positive */}
+          {alert.approvalStatus === 'Pending' && alert.proposedAction && !alert.falsePositive && (
             <div className="rounded-lg border border-[#ff9d4d40] bg-[#ff9d4d08] overflow-hidden">
               <div className="px-4 py-3">
                 <div className="text-[11px] font-semibold text-[#ff9d4d] mb-1.5">Waiting for your decision</div>
@@ -157,6 +217,57 @@ export default function AlertDetail({
               </div>
             </div>
           )}
+
+          {/* False-positive disposition — distinct from an approve/reject decision */}
+          {alert.falsePositive && (
+            <div className="rounded-lg border border-[#f2c94c40] bg-[#f2c94c08] px-4 py-3">
+              <div className="text-[11px] font-semibold text-[#f2c94c] mb-1">
+                Marked false positive{alert.falsePositiveBy ? ` by ${alert.falsePositiveBy}` : ''}
+              </div>
+              <div className="text-xs text-[var(--color-text-secondary)]">{alert.falsePositiveReason}</div>
+              {alert.falsePositiveAt && (
+                <div className="mt-1 text-[10px] font-mono text-[var(--color-text-muted)]">{alert.falsePositiveAt}</div>
+              )}
+            </div>
+          )}
+
+          {/* False-positive reason entry, opened from the action bar below */}
+          {fpOpen && !alert.falsePositive && (
+            <div className="rounded-lg border border-[#f2c94c40] bg-[#f2c94c08] overflow-hidden">
+              <div className="px-4 py-3">
+                <div className="text-[11px] font-semibold text-[#f2c94c] mb-1.5">Mark as false positive</div>
+                <div className="text-xs text-[var(--color-text-secondary)]">
+                  This records that the detection itself wasn't real — separate from rejecting a proposed
+                  response. The alert and its raw event are kept; nothing is deleted.
+                </div>
+              </div>
+              <div className="border-t border-[#f2c94c30] bg-[var(--color-background)] px-4 py-3">
+                <div className="flex items-center gap-2">
+                  <input
+                    value={fpReason}
+                    onChange={e => setFpReason(e.target.value)}
+                    placeholder="Reason (required, recorded in the audit trail)"
+                    className="flex-1 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg px-3 py-1.5 text-xs text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] focus:outline-none focus:border-[#f2c94c40]"
+                  />
+                  <button
+                    onClick={() => { setFpOpen(false); setFpError(null) }}
+                    className="px-3 py-1.5 rounded-lg border border-[var(--color-border-bright)] text-xs text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleConfirmFalsePositive}
+                    disabled={!fpReason.trim() || fpBusy}
+                    className="px-3 py-1.5 rounded-lg bg-[#f2c94c20] border border-[#f2c94c50] text-xs font-semibold text-[#f2c94c] hover:bg-[#f2c94c30] transition-colors whitespace-nowrap disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    {fpBusy ? 'Saving…' : 'Confirm'}
+                  </button>
+                </div>
+                {fpError && <div className="mt-2 text-[11px] text-[#fb4a63]">{fpError}</div>}
+              </div>
+            </div>
+          )}
+
           {/* Alert ID & Source */}
           <div className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg p-4">
             <div className="grid grid-cols-2 gap-4 text-xs">
@@ -271,9 +382,24 @@ export default function AlertDetail({
             </div>
           </div>
 
-          {/* Add Note */}
+          {/* Notes */}
           <div>
-            <div className="text-[10px] uppercase tracking-widest text-[var(--color-info)] font-semibold mb-3">Add Note</div>
+            <div className="text-[10px] uppercase tracking-widest text-[var(--color-info)] font-semibold mb-3">
+              Analyst Notes{notes.length > 0 && ` (${notes.length})`}
+            </div>
+            {notes.length > 0 && (
+              <div className="space-y-2 mb-3">
+                {notes.map(n => (
+                  <div key={n.id} className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg px-3 py-2">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-[10px] font-semibold text-[var(--color-text-primary)]">{n.author}</span>
+                      <span className="text-[10px] font-mono text-[var(--color-text-muted)]">{formatDateTime(n.createdAt, timezone)}</span>
+                    </div>
+                    <div className="text-xs text-[var(--color-text-secondary)] whitespace-pre-wrap">{n.text}</div>
+                  </div>
+                ))}
+              </div>
+            )}
             <textarea
               value={note}
               onChange={e => setNote(e.target.value)}
@@ -281,23 +407,40 @@ export default function AlertDetail({
               placeholder="Add analyst note..."
               className="w-full bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg px-3 py-2.5 text-xs font-mono text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] focus:outline-none focus:border-[#4f8cff] transition-colors resize-none"
             />
+            {noteError && <div className="mt-1.5 text-[11px] text-[#fb4a63]">{noteError}</div>}
           </div>
         </div>
 
         {/* Action Bar */}
-        <div className="sticky bottom-0 bg-[var(--color-background)] border-t border-[var(--color-border)] px-6 py-4 flex items-center gap-3">
-          <button className="flex-1 py-2 rounded-lg bg-[#fb4a6320] border border-[#fb4a6340] text-[#fb4a63] text-xs font-semibold uppercase tracking-wider hover:bg-[#fb4a6330] transition-colors">
-            Escalate to Case
-          </button>
-          <button className="flex-1 py-2 rounded-lg bg-[#f2c94c20] border border-[#f2c94c40] text-[#f2c94c] text-xs font-semibold uppercase tracking-wider hover:bg-[#f2c94c30] transition-colors">
-            Mark False Positive
-          </button>
-          <button
-            onClick={() => { if (note.trim()) { setNoteSubmitted(true); setNote('') } }}
-            className="flex-1 py-2 rounded-lg bg-[#4f8cff15] border border-[#4f8cff40] text-[#4f8cff] text-xs font-semibold uppercase tracking-wider hover:bg-[#4f8cff25] transition-colors"
-          >
-            {noteSubmitted ? 'Note Saved ✓' : 'Save Note'}
-          </button>
+        <div className="sticky bottom-0 bg-[var(--color-background)] border-t border-[var(--color-border)] px-6 py-4">
+          {(escalateError || existingCase) && (
+            <div className={`mb-2 text-[11px] ${escalateError ? 'text-[#fb4a63]' : 'text-[var(--color-text-secondary)]'}`}>
+              {escalateError || `Already escalated to case ${existingCase!.id}`}
+            </div>
+          )}
+          <div className="flex items-center gap-3">
+            <button
+              onClick={handleEscalate}
+              disabled={!!existingCase || escalateBusy}
+              className="flex-1 py-2 rounded-lg bg-[#fb4a6320] border border-[#fb4a6340] text-[#fb4a63] text-xs font-semibold uppercase tracking-wider hover:bg-[#fb4a6330] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              {existingCase ? `Escalated (${existingCase.id})` : escalateBusy ? 'Escalating…' : 'Escalate to Case'}
+            </button>
+            <button
+              onClick={() => setFpOpen(v => !v)}
+              disabled={alert.falsePositive}
+              className="flex-1 py-2 rounded-lg bg-[#f2c94c20] border border-[#f2c94c40] text-[#f2c94c] text-xs font-semibold uppercase tracking-wider hover:bg-[#f2c94c30] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              {alert.falsePositive ? 'Marked False Positive ✓' : 'Mark False Positive'}
+            </button>
+            <button
+              onClick={handleSaveNote}
+              disabled={!note.trim() || noteBusy}
+              className="flex-1 py-2 rounded-lg bg-[#4f8cff15] border border-[#4f8cff40] text-[#4f8cff] text-xs font-semibold uppercase tracking-wider hover:bg-[#4f8cff25] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              {noteBusy ? 'Saving…' : noteSubmitted ? 'Note Saved ✓' : 'Save Note'}
+            </button>
+          </div>
         </div>
       </div>
     </div>

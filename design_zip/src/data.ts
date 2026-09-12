@@ -69,6 +69,21 @@ export interface Alert {
    *  elapsed ingest/enrich/explain time. Empty for older rows written before
    *  this column was exposed. */
   createdAt?: string
+  /** Distinct from approvalStatus: this says the detection itself wasn't
+   *  real, not that a proposed automated response was rejected. */
+  falsePositive?: boolean
+  falsePositiveReason?: string
+  falsePositiveBy?: string
+  falsePositiveAt?: string
+}
+
+/** A persistent analyst note on an alert (one row per note, survives reload/logout). */
+export interface AlertNote {
+  id: number
+  alertId: string
+  author: string
+  text: string
+  createdAt: string
 }
 
 /** A raw, unscored Wazuh event — recorded independently of whatever Alert it becomes. */

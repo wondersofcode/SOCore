@@ -129,21 +129,22 @@ export default function Approvals({ onSelectAlert }: { onSelectAlert: (id: strin
           <div className="divide-y divide-[var(--color-border)]">
             {decisions.map((d, i) => {
               const a = alerts.find(x => x.id === d.alertId)
-              const approved = d.status === 'Approved'
+              const dotColor = d.status === 'Approved' ? '#30d18a' : d.status === 'False Positive' ? '#f2c94c' : 'var(--color-info)'
+              const labelColor = d.status === 'Approved' ? '#30d18a' : d.status === 'False Positive' ? '#f2c94c' : 'var(--color-text-secondary)'
+              const description = d.status === 'False Positive'
+                ? <>on <span className="font-mono">{a?.sourceIP}</span> — the detection itself wasn't real</>
+                : <>{a?.proposedAction?.action ?? 'action'} on <span className="font-mono">{a?.sourceIP}</span></>
               return (
                 <div key={i} className="flex items-start gap-3 px-5 py-3">
                   <span
                     className="mt-0.5 w-1.5 h-1.5 rounded-full shrink-0"
-                    style={{ background: approved ? '#30d18a' : 'var(--color-info)' }}
+                    style={{ background: dotColor }}
                   />
                   <div className="flex-1 min-w-0 text-xs">
                     <div className="text-[var(--color-text-primary)]">
-                      <span style={{ color: approved ? '#30d18a' : 'var(--color-text-secondary)' }}>
-                        {approved ? 'Approved' : 'Rejected'}
-                      </span>
+                      <span style={{ color: labelColor }}>{d.status}</span>
                       {' — '}
-                      {a?.proposedAction?.action ?? 'action'} on{' '}
-                      <span className="font-mono">{a?.sourceIP}</span>
+                      {description}
                     </div>
                     <div className="text-[var(--color-info)] mt-0.5">{d.reason}</div>
                   </div>

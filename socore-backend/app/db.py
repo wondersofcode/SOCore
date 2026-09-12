@@ -124,6 +124,18 @@ CREATE TABLE IF NOT EXISTS decisions (
     reason    TEXT
 );
 
+-- Persistent analyst notes on an alert (distinct from case notes, which are
+-- a JSONB column on `cases`) — one row per note, so they survive reload and
+-- login/logout, and can be audited independently.
+CREATE TABLE IF NOT EXISTS alert_notes (
+    id          SERIAL PRIMARY KEY,
+    alert_id    TEXT NOT NULL,
+    author      TEXT NOT NULL,
+    text        TEXT NOT NULL,
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_alert_notes_alert_id ON alert_notes (alert_id);
+
 CREATE TABLE IF NOT EXISTS users (
     id            SERIAL PRIMARY KEY,
     username      TEXT UNIQUE NOT NULL,
@@ -180,6 +192,10 @@ CREATE TABLE IF NOT EXISTS id_counters (
 # idempotent and safe to run on every startup.
 MIGRATIONS = """
 ALTER TABLE alerts ADD COLUMN IF NOT EXISTS source_event_id TEXT;
+ALTER TABLE alerts ADD COLUMN IF NOT EXISTS false_positive BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE alerts ADD COLUMN IF NOT EXISTS false_positive_reason TEXT;
+ALTER TABLE alerts ADD COLUMN IF NOT EXISTS false_positive_by TEXT;
+ALTER TABLE alerts ADD COLUMN IF NOT EXISTS false_positive_at TEXT;
 """
 
 

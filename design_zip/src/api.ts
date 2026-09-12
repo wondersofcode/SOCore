@@ -10,7 +10,7 @@
  * With no env var it defaults to localhost:8000.
  */
 import type {
-  AdminUser, Alert, Case, WazuhRawEvent,
+  AdminUser, Alert, AlertNote, Case, WazuhRawEvent,
   MitreCenterResponse, TechniqueDetail,
   SimulationDefinition, SimulationRun, SimulationRunDetail, SimulationCenterSummary,
 } from './data'
@@ -80,6 +80,21 @@ export const api = {
   events: (limit = 50, offset = 0) => req<WazuhRawEvent[]>(`/api/events?limit=${limit}&offset=${offset}`),
   event: (id: string) => req<WazuhRawEvent>(`/api/events/${id}`),
   eventsCount: () => req<{ count: number }>('/api/events/count'),
+
+  // Alert notes — persistent (Postgres), author always the authenticated caller.
+  alertNotes: (alertId: string) => req<AlertNote[]>(`/api/alerts/${encodeURIComponent(alertId)}/notes`),
+  addAlertNote: (alertId: string, text: string) =>
+    req<AlertNote>(`/api/alerts/${encodeURIComponent(alertId)}/notes`, {
+      method: 'POST',
+      body: JSON.stringify({ text }),
+    }),
+
+  // False-positive disposition — distinct from approve/reject.
+  markFalsePositive: (alertId: string, reason: string) =>
+    req<Alert>(`/api/alerts/${encodeURIComponent(alertId)}/false-positive`, {
+      method: 'POST',
+      body: JSON.stringify({ reason }),
+    }),
 
   // Admin: registration approval + role management
   adminPendingCount: () => req<{ count: number }>('/api/admin/pending-count'),

@@ -4,9 +4,16 @@ import type { Alert, ApprovalStatus, Case } from './data'
 import { api } from './api'
 import { useAuth } from './lib/AuthContext'
 
+/** The approve/reject decision() can record — distinct from the wider set
+ *  of statuses that can appear in the decisions audit log (see Decision
+ *  below), since 'False Positive' is never produced by decide(). */
+type ApprovalDecisionStatus = Exclude<ApprovalStatus, 'None' | 'Pending'>
+
 export interface Decision {
   alertId: string
-  status: Exclude<ApprovalStatus, 'None' | 'Pending'>
+  // 'False Positive' is a distinct disposition, not a rejection of a
+  // proposed action — see AlertDetail's "Mark False Positive" flow.
+  status: ApprovalDecisionStatus | 'False Positive'
   by: string
   at: string
   reason: string
@@ -16,7 +23,11 @@ interface Store {
   alerts: Alert[]
   decisions: Decision[]
   pending: Alert[]
-  decide: (alertId: string, status: Decision['status'], reason: string) => void
+  decide: (alertId: string, status: ApprovalDecisionStatus, reason: string) => void
+  /** Marks an alert as a false positive (distinct from rejecting a proposed
+   *  action) and reconciles local state with the persisted result. Requires
+   *  the backend — returns null in mock mode. */
+  markFalsePositive: (alertId: string, reason: string) => Promise<Alert | null>
   currentUser: string
   /** True when data is coming from the backend, false when using seeded mock. */
   live: boolean
@@ -91,7 +102,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     return () => { cancelled = true; if (timer) clearInterval(timer) }
   }, [])
 
-  const applyLocalDecision = useCallback((alertId: string, status: Decision['status'], reason: string) => {
+  const applyLocalDecision = useCallback((alertId: string, status: ApprovalDecisionStatus, reason: string) => {
     setAlerts(prev =>
       prev.map(a =>
         a.id === alertId
@@ -108,7 +119,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     setDecisions(prev => [{ alertId, status, by: currentUser, at: now(), reason }, ...prev])
   }, [currentUser])
 
-  const decide = useCallback((alertId: string, status: Decision['status'], reason: string) => {
+  const decide = useCallback((alertId: string, status: ApprovalDecisionStatus, reason: string) => {
     // Optimistic update so the UI reacts instantly either way.
     applyLocalDecision(alertId, status, reason)
     if (live) {
@@ -119,7 +130,18 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     }
   }, [live, applyLocalDecision, currentUser])
 
-  const pending = useMemo(() => alerts.filter(a => a.approvalStatus === 'Pending'), [alerts])
+  const markFalsePositive = useCallback(async (alertId: string, reason: string) => {
+    if (!live) return null // needs the backend to persist the disposition + audit trail
+    try {
+      const updated = await api.markFalsePositive(alertId, reason)
+      setAlerts(prev => prev.map(a => (a.id === updated.id ? updated : a)))
+      return updated
+    } catch {
+      return null
+    }
+  }, [live])
+
+  const pending = useMemo(() => alerts.filter(a => a.approvalStatus === 'Pending' && !a.falsePositive), [alerts])
 
   const createCase = useCallback(async (alertId: string, title: string | undefined, assignedTo: string) => {
     if (!live) return null // case creation needs the backend; mock mode has nothing to persist to
@@ -168,10 +190,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   const value = useMemo<Store>(
     () => ({
-      alerts, decisions, pending, decide, currentUser, live, aiLive, lastFetchedAt,
+      alerts, decisions, pending, decide, markFalsePositive, currentUser, live, aiLive, lastFetchedAt,
       cases: caseList, createCase, updateCaseStatus, addCaseNote, toggleCaseTask,
     }),
-    [alerts, decisions, pending, decide, live, aiLive, lastFetchedAt, caseList, createCase, updateCaseStatus, addCaseNote, toggleCaseTask],
+    [alerts, decisions, pending, decide, markFalsePositive, live, aiLive, lastFetchedAt, caseList, createCase, updateCaseStatus, addCaseNote, toggleCaseTask],
   )
 
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>
