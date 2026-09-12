@@ -48,7 +48,18 @@ def _classify(alert_count: int, runs: list) -> TechniqueCoverageStatus:
     return TechniqueCoverageStatus.not_tested
 
 
-def _build_coverage(tactic: dict, tech: dict, alert_rows: dict[str, dict]) -> TechniqueCoverage:
+def _runs_by_technique_base(limit: int = 10000) -> dict[str, list]:
+    """One query for the whole matrix instead of an N+1 — grouped in Python
+    the same way alert_coverage_by_technique() groups in SQL. `evaluate_many`
+    is a no-op (no DB call) for anything already terminal, so this stays a
+    single round trip even when runs are still 'running'."""
+    grouped: dict[str, list] = {}
+    for r in simulations.evaluate_many(store.all_simulation_runs(limit=limit)):
+        grouped.setdefault(attack.technique_base(r.techniqueId), []).append(r)
+    return grouped
+
+
+def _build_coverage(tactic: dict, tech: dict, alert_rows: dict[str, dict], runs: list) -> TechniqueCoverage:
     row = alert_rows.get(tech["id"])
     alert_count = row["alert_count"] if row else 0
     first_detected = str(row["first_detected"]) if row and row.get("first_detected") else None
@@ -57,7 +68,6 @@ def _build_coverage(tactic: dict, tech: dict, alert_rows: dict[str, dict]) -> Te
     if row and row.get("severities"):
         highest_severity = max(row["severities"], key=lambda s: _SEVERITY_RANK.get(s, -1))
 
-    runs = simulations.evaluate_many(store.runs_for_technique_base(tech["id"]))
     passed = sum(1 for r in runs if r.status == SimulationRunStatus.passed)
     failed = sum(1 for r in runs if r.status in (SimulationRunStatus.failed, SimulationRunStatus.partial))
     terminal = [r for r in runs if r.status != SimulationRunStatus.running]
@@ -85,11 +95,12 @@ def _build_coverage(tactic: dict, tech: dict, alert_rows: dict[str, dict]) -> Te
 def build_center() -> MitreCenterResponse:
     simulations.refresh_running_runs()
     alert_rows = store.alert_coverage_by_technique()
+    runs_by_base = _runs_by_technique_base()
 
     tactics: list[MitreTactic] = []
     all_coverage: list[TechniqueCoverage] = []
     for tactic in attack.TACTICS:
-        techs = [_build_coverage(tactic, t, alert_rows) for t in tactic["techniques"]]
+        techs = [_build_coverage(tactic, t, alert_rows, runs_by_base.get(t["id"], [])) for t in tactic["techniques"]]
         tactics.append(MitreTactic(id=tactic["id"], name=tactic["name"], techniques=techs))
         all_coverage.extend(techs)
 
@@ -126,7 +137,8 @@ def build_technique_detail(technique_id: str) -> TechniqueDetail | None:
     tactic, tech = found
 
     alert_rows = store.alert_coverage_by_technique()
-    coverage = _build_coverage(tactic, tech, alert_rows)
+    related_runs = simulations.evaluate_many(store.runs_for_technique_base(tech["id"]))
+    coverage = _build_coverage(tactic, tech, alert_rows, related_runs)
 
     related_alerts = store.alerts_for_technique_base(tech["id"], limit=25)
     alert_ids = {a.id for a in related_alerts}
@@ -135,7 +147,6 @@ def build_technique_detail(technique_id: str) -> TechniqueDetail | None:
         for c in store.all_cases()
         if alert_ids.intersection(c.alertIds)
     ]
-    related_runs = simulations.evaluate_many(store.runs_for_technique_base(tech["id"]))
 
     # Raw events behind these alerts — the append-only history layer, kept
     # independent of the Alert it became (see events_for_ids/store.py).
