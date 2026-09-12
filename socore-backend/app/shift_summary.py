@@ -24,9 +24,14 @@ _cache: dict[int, tuple[float, str]] = {}  # windowHours -> (cached_at, summary)
 _SYSTEM_INSTRUCTIONS = (
     "You write a short shift-handover summary for a SOC (Security Operations "
     "Center) analyst, based only on the JSON facts given. 3-4 sentences, plain "
-    "English, no markdown, no preamble — mention the alert count, how many were "
-    "critical, the most common source country if there is one, and how many "
-    "cases were opened. If a number is zero, say so plainly rather than skipping it."
+    "English, no markdown, no preamble — mention the alert count, the severity "
+    "breakdown, the most common source country if there is one, and how many "
+    "cases were opened. If a number is zero, say so plainly rather than skipping it. "
+    "severityCounts' keys are SOCore's exact severity tiers: Critical, High, "
+    "Medium, Low, Informational. Refer to each tier only by its own name plus "
+    "the word 'severity' (e.g. 'high severity', 'medium severity') — never call "
+    "a High-severity alert 'critical', and never describe any tier as critical "
+    "unless it is literally counted under the 'Critical' key."
 )
 
 
@@ -70,15 +75,36 @@ def _facts(alerts: list[Alert], cases: list[Case], decisions: list[DecisionRecor
     }
 
 
+_SEVERITY_ORDER = ["Critical", "High", "Medium", "Low", "Informational"]
+
+
+def _severity_breakdown_phrase(severity_counts: dict) -> str:
+    """'<n> classified as <tier> severity[, ...] and <n> as <tier> severity' —
+    using SOCore's real severity tiers exactly as scored (Critical/High/
+    Medium/Low/Informational). A High-severity alert is never described as
+    critical, and vice versa — each tier only ever gets its own name."""
+    present = [(tier, severity_counts[tier]) for tier in _SEVERITY_ORDER if severity_counts.get(tier)]
+    if not present:
+        return ""
+    phrases = [
+        f"{count} classified as {tier.lower()} severity" if i == 0 else f"{count} as {tier.lower()} severity"
+        for i, (tier, count) in enumerate(present)
+    ]
+    if len(phrases) == 1:
+        return phrases[0]
+    return ", ".join(phrases[:-1]) + " and " + phrases[-1]
+
+
 def _mock_summary(facts: dict) -> str:
     """Deterministic fallback when no Groq key is configured."""
     n = facts["alertCount"]
     if n == 0:
         return f"No alerts were recorded in the last {facts['windowHours']} hours. {facts['casesOpened']} case(s) were opened in this window."
-    critical = facts["severityCounts"].get("Critical", 0)
+    breakdown = _severity_breakdown_phrase(facts["severityCounts"])
+    severity_clause = f", with {breakdown}" if breakdown else ""
     country = f", most from {facts['topSourceCountry']}" if facts["topSourceCountry"] else ""
     return (
-        f"{n} alert(s) came in over the last {facts['windowHours']} hours, {critical} of them critical{country}. "
+        f"{n} alert(s) were recorded over the last {facts['windowHours']} hours{severity_clause}{country}. "
         f"Average risk score was {facts['avgRiskScore']}. {facts['casesOpened']} case(s) were opened in this window."
     )
 

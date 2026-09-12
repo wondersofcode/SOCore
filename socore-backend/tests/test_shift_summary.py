@@ -7,7 +7,14 @@ timestamp shapes the old naive-only parser couldn't read.
 from datetime import datetime, timedelta, timezone
 
 from app.models import Alert, AlertStatus, Case, CaseStatus, DecisionRecord, Severity
-from app.shift_summary import get_summary, windowed_alerts, windowed_cases, windowed_decision_count
+from app.shift_summary import (
+    _mock_summary,
+    _severity_breakdown_phrase,
+    get_summary,
+    windowed_alerts,
+    windowed_cases,
+    windowed_decision_count,
+)
 
 # windowed_alerts()/windowed_cases() cut off relative to the real wall clock
 # (datetime.now(timezone.utc)), not an injectable clock — so every fixture
@@ -160,3 +167,63 @@ def test_get_summary_alert_and_decision_counts_track_the_selected_window():
     assert decisions_24h == 2  # both A1's and A3's decisions now qualify
     assert isinstance(summary_8h, str) and summary_8h
     assert isinstance(summary_24h, str) and summary_24h
+
+
+def test_severity_breakdown_phrase_high_and_medium_uses_correct_terminology():
+    # The exact production wording bug: 26 High-severity alerts must never
+    # be described as "critical (high severity)" — High and Critical are
+    # distinct SOCore tiers.
+    phrase = _severity_breakdown_phrase({"High": 26, "Medium": 7})
+    assert phrase == "26 classified as high severity and 7 as medium severity"
+    assert "critical" not in phrase.lower()
+
+
+def test_severity_breakdown_phrase_only_uses_critical_label_for_critical_tier():
+    phrase = _severity_breakdown_phrase({"Critical": 2, "High": 26, "Medium": 7})
+    assert phrase == "2 classified as critical severity, 26 as high severity and 7 as medium severity"
+
+
+def test_severity_breakdown_phrase_single_tier():
+    assert _severity_breakdown_phrase({"High": 5}) == "5 classified as high severity"
+
+
+def test_severity_breakdown_phrase_empty_when_no_alerts():
+    assert _severity_breakdown_phrase({}) == ""
+
+
+def test_mock_summary_high_26_medium_7_never_says_critical():
+    # End-to-end regression for the reported production bug: a report with
+    # High=26/Medium=7 (0 Critical) must render "high severity"/"medium
+    # severity" wording, never "critical (high severity)".
+    facts = {
+        "windowHours": 24,
+        "alertCount": 33,
+        "severityCounts": {"High": 26, "Medium": 7},
+        "topSourceCountry": None,
+        "topAttackTypes": [],
+        "casesOpened": 0,
+        "decisionCount": 0,
+        "avgRiskScore": 62.5,
+    }
+    summary = _mock_summary(facts)
+    assert "26 classified as high severity and 7 as medium severity" in summary
+    assert "critical" not in summary.lower()
+    assert "critical (high severity)" not in summary.lower()
+
+
+def test_get_summary_mock_fallback_uses_correct_severity_terminology():
+    # Same scenario, but driven through get_summary()/windowed_alerts() with
+    # real Alert objects — proves the fix holds through the whole pipeline,
+    # not just the string-formatting helper in isolation.
+    alerts = (
+        [_alert(f"H{i}", _hours_ago(1), severity=Severity.high) for i in range(26)]
+        + [_alert(f"M{i}", _hours_ago(1), severity=Severity.medium) for i in range(7)]
+    )
+    # force_refresh=True: other tests in this module also call get_summary(24),
+    # which would otherwise return their cached summary text instead of one
+    # computed from this test's own fixture (get_summary's 5-minute cache is
+    # module-global and keyed only by hours).
+    summary, _cached, count, _decisions = get_summary(alerts, [], [], 24, force_refresh=True)
+    assert count == 33
+    assert "26 classified as high severity and 7 as medium severity" in summary
+    assert "critical" not in summary.lower()
