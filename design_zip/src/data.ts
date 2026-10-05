@@ -2,6 +2,10 @@ export type Severity = 'Critical' | 'High' | 'Medium' | 'Low' | 'Informational'
 export type AlertStatus = 'New' | 'Enriching' | 'Responding' | 'Resolved'
 export type CaseStatus = 'Open' | 'Investigating' | 'Contained' | 'Closed'
 export type ApprovalStatus = 'None' | 'Pending' | 'Approved' | 'Rejected'
+/** What the backend actually did with an approved action. 'Executed' only
+ *  ever means a real, verified action; 'Simulated' means no executor exists
+ *  for that action type and nothing changed on any system. */
+export type ExecutionStatus = 'None' | 'Executing' | 'Executed' | 'Simulated' | 'ExecutionFailed' | 'Reverted'
 export type SourceStatus = 'hit' | 'clean' | 'pending' | 'skipped'
 export type UserRole = 'l1_analyst' | 'l2_analyst' | 'admin'
 export type UserStatus = 'pending' | 'approved' | 'rejected'
@@ -34,6 +38,41 @@ export interface ProposedAction {
   target: string
   playbook: string
   dryRun: boolean
+  /** Server-derived: what Approve & Run will really do. */
+  executor: 'fail2ban' | 'simulated'
+}
+
+/** Persisted outcome of an execution attempt (shape differs per executor, so
+ *  only the fields the UI reads are typed). */
+export interface ExecutionResult {
+  status?: string
+  mode?: 'fail2ban' | 'simulated'
+  ok?: boolean
+  error?: string
+  detail?: string
+  jail?: string
+  target?: string
+  command?: string
+  exit_code?: number | null
+  banned_ips?: string[] | null
+  verified?: boolean
+  revert?: { ok?: boolean; command?: string; exit_code?: number | null }
+  revert_error?: { error?: string }
+}
+
+/** One append-only audit-trail row for an alert. */
+export interface AuditEntry {
+  id: number
+  alertId: string
+  actorId: string
+  actorName: string
+  actorRole: string
+  action: string
+  previousState: string
+  newState: string
+  reason: string
+  result: ExecutionResult | null
+  createdAt: string
 }
 
 export interface Alert {
@@ -75,6 +114,13 @@ export interface Alert {
   falsePositiveReason?: string
   falsePositiveBy?: string
   falsePositiveAt?: string
+  executionStatus: ExecutionStatus
+  executionResult: ExecutionResult | null
+  executedAt: string
+  decidedBy: string
+  decidedByRole: string
+  decisionReason: string
+  decidedAt: string
 }
 
 /** A persistent analyst note on an alert (one row per note, survives reload/logout). */
@@ -104,7 +150,7 @@ export interface WazuhRawEvent {
 }
 
 /** Alert fields authored by hand; the rest are derived below. */
-type AlertSeed = Omit<Alert, 'riskScore' | 'aiExplanation' | 'aiConfidence' | 'proposedAction' | 'approvalStatus' | 'sources'>
+type AlertSeed = Omit<Alert, 'riskScore' | 'aiExplanation' | 'aiConfidence' | 'proposedAction' | 'approvalStatus' | 'sources' | 'executionStatus' | 'executionResult' | 'executedAt' | 'decidedBy' | 'decidedByRole' | 'decisionReason' | 'decidedAt'>
 
 export interface CaseTask {
   id: string
@@ -602,6 +648,7 @@ export const alerts: Alert[] = [...baseAlerts, ...queueAlerts].map(a => {
         target: a.sourceIP,
         playbook: `PB-${a.attackType.toLowerCase().replace(/[^a-z]+/g, '-')}`,
         dryRun: true,
+        executor: 'simulated',
       }
     : null
   return {
@@ -612,6 +659,13 @@ export const alerts: Alert[] = [...baseAlerts, ...queueAlerts].map(a => {
     proposedAction,
     approvalStatus: proposedAction ? (decided[a.id] ?? 'Pending') : 'None',
     sources: buildSources(a),
+    executionStatus: 'None',
+    executionResult: null,
+    executedAt: '',
+    decidedBy: '',
+    decidedByRole: '',
+    decisionReason: '',
+    decidedAt: '',
   }
 })
 

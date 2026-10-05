@@ -275,7 +275,11 @@ def is_duplicate(rule_id: str, agent_id: str) -> bool:
 
 def send_event(event: dict, hook_url: str) -> None:
     try:
-        response = requests.post(hook_url, json=event, timeout=25)
+        # Optional shared secret: required by the backend only when it has
+        # SOCORE_INGEST_TOKEN set (see socore-backend/README.md).
+        token = os.environ.get('SOCORE_INGEST_TOKEN', '').strip()
+        headers = {'X-SOCore-Token': token} if token else {}
+        response = requests.post(hook_url, json=event, headers=headers, timeout=25)
         debug(f'# Response received: {response.status_code} {response.text}')
     except Exception as e:
         debug(f'# ERROR: Request to {hook_url} failed: {e}')

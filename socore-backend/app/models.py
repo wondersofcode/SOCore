@@ -11,7 +11,9 @@ from datetime import datetime
 from enum import Enum
 from typing import Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
+
+from .response_exec import KIND_BLOCK_IP, classify
 
 
 # ── Enumerations ────────────────────────────────────────────────────────────
@@ -37,6 +39,19 @@ class ApprovalStatus(str, Enum):
     rejected = "Rejected"
 
 
+class ExecutionStatus(str, Enum):
+    """Where an approved response action is in its lifecycle. Separate from
+    ApprovalStatus (the human decision) so "approved" never implies "ran".
+    None -> Executing -> Executed | Simulated | ExecutionFailed
+    Executed -> Reverted (unban). ExecutionFailed -> Executing (retry)."""
+    none = "None"
+    executing = "Executing"
+    executed = "Executed"
+    simulated = "Simulated"
+    failed = "ExecutionFailed"
+    reverted = "Reverted"
+
+
 class SourceStatus(str, Enum):
     hit = "hit"
     clean = "clean"
@@ -57,6 +72,17 @@ class ProposedAction(BaseModel):
     target: str
     playbook: str
     dryRun: bool = True
+    # What will really happen on Approve & Run, derived server-side from the
+    # action text (response_exec.classify): "fail2ban" (a real IP ban) or
+    # "simulated" (no executor exists - it will be labelled Simulated).
+    executor: str = "simulated"
+
+    @model_validator(mode="after")
+    def _derive_executor(self) -> "ProposedAction":
+        # Always recomputed (never trusted from storage/clients) so every code
+        # path - ingest response, DB read, API - reports the same thing.
+        self.executor = "fail2ban" if classify(self.action) == KIND_BLOCK_IP else "simulated"
+        return self
 
 
 # ── The Wazuh event that arrives on the webhook ─────────────────────────────
@@ -144,6 +170,16 @@ class Alert(BaseModel):
     falsePositiveReason: str = ""
     falsePositiveBy: str = ""
     falsePositiveAt: str = ""
+    # Human decision + what the backend actually did about it. executionStatus
+    # is only "Executed" when a real action ran and was verified; actions SOCore
+    # cannot execute (e.g. host isolation) are "Simulated", never "Executed".
+    executionStatus: ExecutionStatus = ExecutionStatus.none
+    executionResult: Optional[dict] = None
+    executedAt: str = ""
+    decidedBy: str = ""
+    decidedByRole: str = ""
+    decisionReason: str = ""
+    decidedAt: str = ""
 
 
 # ── Case management (replaces TheHive) ──────────────────────────────────────
@@ -195,16 +231,36 @@ class UpdateCaseRequest(BaseModel):
 
 
 class AddNoteRequest(BaseModel):
-    author: str
+    # Ignored: the author is always the authenticated caller. Kept optional so
+    # older clients that still send it keep working.
+    author: Optional[str] = None
     text: str
 
 
 # ── Request/response bodies ─────────────────────────────────────────────────
 class ApprovalDecision(BaseModel):
     decision: str = Field(description="'approve' or 'reject'")
-    reason: str = ""
-    analyst: str = "K. Osei"
+    reason: str = Field(default="", max_length=2000)
+    # Deprecated and ignored — identity always comes from the verified JWT.
+    analyst: Optional[str] = None
 
+
+class ReasonRequest(BaseModel):
+    reason: str = Field(default="", max_length=2000)
+
+
+class AuditEntry(BaseModel):
+    id: int
+    alertId: str
+    actorId: str = ""
+    actorName: str
+    actorRole: str = ""
+    action: str
+    previousState: str = ""
+    newState: str = ""
+    reason: str = ""
+    result: Optional[dict] = None
+    createdAt: str = ""
 
 class DecisionRecord(BaseModel):
     alertId: str

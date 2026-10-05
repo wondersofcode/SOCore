@@ -24,8 +24,10 @@ from .models import (
     CaseNote,
     CaseStatus,
     CaseTask,
+    AuditEntry,
     DecisionRecord,
     Event,
+    ExecutionStatus,
     Profile,
     SimulationRun,
     SimulationRunStatus,
@@ -77,6 +79,44 @@ def _row_to_alert(row: dict) -> Alert:
         falsePositiveReason=row.get("false_positive_reason") or "",
         falsePositiveBy=row.get("false_positive_by") or "",
         falsePositiveAt=row.get("false_positive_at") or "",
+        executionStatus=row.get("execution_status") or ExecutionStatus.none.value,
+        executionResult=row.get("execution_result"),
+        executedAt=row.get("executed_at") or "",
+        decidedBy=row.get("decided_by") or "",
+        decidedByRole=row.get("decided_by_role") or "",
+        decisionReason=row.get("decision_reason") or "",
+        decidedAt=row.get("decided_at") or "",
+    )
+
+
+def _row_to_audit(row: dict) -> AuditEntry:
+    return AuditEntry(
+        id=row["id"],
+        alertId=row["alert_id"],
+        actorId=row.get("actor_id") or "",
+        actorName=row["actor_name"],
+        actorRole=row.get("actor_role") or "",
+        action=row["action"],
+        previousState=row.get("prev_state") or "",
+        newState=row.get("new_state") or "",
+        reason=row.get("reason") or "",
+        result=row.get("result"),
+        createdAt=_iso(row.get("created_at")),
+    )
+
+
+def _audit(cur, alert_id: str, actor, action: str, prev: str, new: str, reason: str = "", result: dict | None = None) -> None:
+    """Appends one audit row on the caller's cursor (so it commits or rolls
+    back together with the state change it describes). `actor` is an
+    auth.CurrentUser or any object with user_id/display_name/role."""
+    cur.execute(
+        "INSERT INTO audit_log (alert_id, actor_id, actor_name, actor_role, action, prev_state, new_state, reason, result) "
+        "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)",
+        (
+            alert_id, getattr(actor, "user_id", None), getattr(actor, "display_name", "system"),
+            getattr(actor, "role", None), action, prev, new, reason or None,
+            json.dumps(result) if result is not None else None,
+        ),
     )
 
 
@@ -248,29 +288,121 @@ class AlertStore:
             )
         return alert
 
-    def decide(self, alert_id: str, decision: str, reason: str, analyst: str) -> Alert | None:
-        alert = self.get(alert_id)
-        if alert is None:
-            return None
-        approved = decision.lower().startswith("app")
-        new_status = AlertStatus.responding if approved else AlertStatus.resolved
-        new_approval = ApprovalStatus.approved if approved else ApprovalStatus.rejected
-        new_analyst = analyst if alert.analyst == "Unassigned" else alert.analyst
-        responded_at = alert.respondedAt or now_hms()
-
+    # ── human-in-the-loop decision + execution (state machine) ────────────
+    # Approval:   Pending -> Approved (+ execution Executing) | Rejected
+    # Execution:  Executing -> Executed | Simulated | ExecutionFailed
+    #             ExecutionFailed -> Executing (retry); Executed -> Executing
+    #             -> Reverted (unban)
+    # Every transition is a single conditional UPDATE ... WHERE <expected
+    # state> RETURNING, so concurrent requests are serialised by Postgres row
+    # locking: exactly one caller gets the row back and may run the action.
+    def claim_decision(self, alert_id: str, approve: bool, actor, reason: str) -> Alert | None:
+        """Atomically moves a Pending alert to Approved/Rejected and records the
+        decision + audit row in the same transaction. Returns None when the
+        alert is not (or is no longer) pending, i.e. someone else got there
+        first, so the caller must NOT run anything."""
+        new_approval = ApprovalStatus.approved if approve else ApprovalStatus.rejected
+        new_status = AlertStatus.responding if approve else AlertStatus.resolved
+        now = now_hms()
         with db.get_cursor(commit=True) as cur:
             cur.execute(
                 """
-                UPDATE alerts SET status=%s, approval_status=%s, analyst=%s, responded_at=%s
-                WHERE id=%s
+                UPDATE alerts SET
+                    status=%s, approval_status=%s,
+                    analyst = CASE WHEN analyst='Unassigned' THEN %s ELSE analyst END,
+                    responded_at = COALESCE(NULLIF(responded_at, ''), %s),
+                    execution_status=%s, decided_by=%s, decided_by_role=%s,
+                    decision_reason=%s, decided_at=%s
+                WHERE id=%s AND approval_status=%s AND NOT false_positive
+                RETURNING *
                 """,
-                (new_status.value, new_approval.value, new_analyst, responded_at, alert_id),
+                (
+                    new_status.value, new_approval.value, actor.display_name, now,
+                    (ExecutionStatus.executing if approve else ExecutionStatus.none).value,
+                    actor.display_name, actor.role, reason, now_full(),
+                    alert_id, ApprovalStatus.pending.value,
+                ),
             )
+            row = cur.fetchone()
+            if row is None:
+                return None
             cur.execute(
-                "INSERT INTO decisions (alert_id, status, by_whom, at, reason) VALUES (%s,%s,%s,%s,%s)",
-                (alert_id, new_approval.value, analyst, now_hms(), reason or "No reason given"),
+                "INSERT INTO decisions (alert_id, status, by_whom, at, reason, actor_id, actor_role) "
+                "VALUES (%s,%s,%s,%s,%s,%s,%s)",
+                (alert_id, new_approval.value, actor.display_name, now, reason or "No reason given", actor.user_id, actor.role),
             )
-        return self.get(alert_id)
+            _audit(cur, alert_id, actor, "approve" if approve else "reject",
+                   ApprovalStatus.pending.value, new_approval.value, reason)
+            return _row_to_alert(row)
+
+    def finish_execution(self, alert_id: str, status: ExecutionStatus, result: dict, actor, audit_action: str,
+                         reason: str = "") -> Alert | None:
+        """Records the outcome of an execution attempt (only while the alert is
+        still in the expected `Executing` state) and audits it."""
+        with db.get_cursor(commit=True) as cur:
+            cur.execute(
+                "UPDATE alerts SET execution_status=%s, execution_result=%s, executed_at=%s "
+                "WHERE id=%s AND execution_status=%s RETURNING *",
+                (status.value, json.dumps(result), now_full(), alert_id, ExecutionStatus.executing.value),
+            )
+            row = cur.fetchone()
+            if row is None:
+                return None
+            _audit(cur, alert_id, actor, audit_action, ExecutionStatus.executing.value, status.value, reason, result)
+            return _row_to_alert(row)
+
+    def claim_execution_transition(self, alert_id: str, from_status: ExecutionStatus, actor, audit_action: str,
+                                   reason: str = "") -> Alert | None:
+        """Atomic `from_status -> Executing` for retry / revert. None if the
+        alert is not in `from_status` (already retried, reverted, etc.)."""
+        with db.get_cursor(commit=True) as cur:
+            cur.execute(
+                "UPDATE alerts SET execution_status=%s "
+                "WHERE id=%s AND approval_status=%s AND execution_status=%s RETURNING *",
+                (ExecutionStatus.executing.value, alert_id, ApprovalStatus.approved.value, from_status.value),
+            )
+            row = cur.fetchone()
+            if row is None:
+                return None
+            _audit(cur, alert_id, actor, audit_action, from_status.value, ExecutionStatus.executing.value, reason)
+            return _row_to_alert(row)
+
+    def record_audit(self, alert_id: str, actor, action: str, prev: str = "", new: str = "",
+                     reason: str = "", result: dict | None = None) -> None:
+        """Stand-alone audit row - used for refused attempts (insufficient
+        role, protected target, conflicting state) that change no state."""
+        with db.get_cursor(commit=True) as cur:
+            _audit(cur, alert_id, actor, action, prev, new, reason, result)
+
+    def audit_for_alert(self, alert_id: str) -> list[AuditEntry]:
+        with db.get_cursor() as cur:
+            cur.execute("SELECT * FROM audit_log WHERE alert_id=%s ORDER BY id DESC", (alert_id,))
+            return [_row_to_audit(r) for r in cur.fetchall()]
+
+    def recover_stuck_executions(self, older_than_minutes: int = 5) -> int:
+        """If the backend died mid-execution an alert would sit in 'Executing'
+        forever and block retries. Mark such rows ExecutionFailed (with an
+        audit row) so an L2 can retry. The real outcome is unknown, so the
+        reason says exactly that."""
+        system = type("System", (), {"user_id": None, "display_name": "system", "role": "system"})()
+        n = 0
+        with db.get_cursor(commit=True) as cur:
+            cur.execute(
+                """
+                UPDATE alerts SET execution_status=%s,
+                    execution_result=jsonb_build_object('status','ExecutionFailed','ok',false,
+                        'error','Backend restarted during execution; outcome unknown - verify the target and retry')
+                WHERE execution_status=%s AND decided_at IS NOT NULL
+                  AND decided_at::timestamp < (now() at time zone 'utc') - make_interval(mins => %s)
+                RETURNING id
+                """,
+                (ExecutionStatus.failed.value, ExecutionStatus.executing.value, older_than_minutes),
+            )
+            for r in cur.fetchall():
+                _audit(cur, r["id"], system, "execution_interrupted", ExecutionStatus.executing.value,
+                       ExecutionStatus.failed.value, "Backend restarted during execution")
+                n += 1
+        return n
 
     def seed(self, make_alerts: Callable[[], list[Alert]]) -> None:
         """Only seed once — if the table already has rows (a real restart

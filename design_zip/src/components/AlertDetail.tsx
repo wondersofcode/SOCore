@@ -4,6 +4,7 @@ import { useStore } from '../store'
 import { useAuth } from '../lib/AuthContext'
 import { formatDateTime, formatTimeOfDay } from '../lib/dateFormat'
 import { api } from '../api'
+import { DecisionControls, DecisionOutcome, AuditTrail } from './Decision'
 import type { AlertNote, SimulationRun } from '../data'
 
 interface TimelineStep {
@@ -22,7 +23,7 @@ export default function AlertDetail({
   onClose: () => void
   onViewEvent?: (eventId: string) => void
 }) {
-  const { alerts, cases, decide, markFalsePositive, createCase, currentUser, live } = useStore()
+  const { alerts, cases, markFalsePositive, createCase, currentUser, live } = useStore()
   const { profile } = useAuth()
   const timezone = profile?.timezone
   const alert = alerts.find(a => a.id === alertId)
@@ -31,7 +32,6 @@ export default function AlertDetail({
   const [noteBusy, setNoteBusy] = useState(false)
   const [noteError, setNoteError] = useState<string | null>(null)
   const [notes, setNotes] = useState<AlertNote[]>([])
-  const [reason, setReason] = useState('')
   const [showFullAi, setShowFullAi] = useState(false)
   const [relatedSimRun, setRelatedSimRun] = useState<SimulationRun | null>(null)
 
@@ -104,7 +104,7 @@ export default function AlertDetail({
     { label: 'Detected', time: formatTimeOfDay(alert.detectedAt, alert.timestamp, timezone), done: true, color: '#4f8cff' },
     { label: 'Enriched', time: alert.enrichedAt ? formatTimeOfDay(alert.enrichedAt, alert.timestamp, timezone) : '—', done: !!alert.enrichedAt, color: '#9c8bfb' },
     { label: 'Responded', time: alert.respondedAt ? formatTimeOfDay(alert.respondedAt, alert.timestamp, timezone) : '—', done: !!alert.respondedAt, color: '#ff9d4d' },
-    { label: 'Tracked', time: alert.status === 'Resolved' ? formatTimeOfDay('09:45:00', alert.timestamp, timezone) : '—', done: alert.status === 'Resolved', color: '#30d18a' },
+    { label: 'Resolved', time: alert.status === 'Resolved' ? (alert.falsePositiveAt || alert.decidedAt ? formatDateTime(alert.falsePositiveAt || alert.decidedAt, timezone) : '—') : '—', done: alert.status === 'Resolved', color: '#30d18a' },
   ]
 
   const vtColor = alert.vtScore >= 75 ? '#fb4a63' : alert.vtScore >= 40 ? '#ff9d4d' : '#30d18a'
@@ -174,49 +174,18 @@ export default function AlertDetail({
                 <div className="text-sm text-[var(--color-text-primary)]">{alert.proposedAction.action}</div>
                 <div className="mt-1 text-xs text-[var(--color-text-secondary)]">
                   Target <span className="font-mono text-[var(--color-text-primary)]">{alert.proposedAction.target}</span>
-                  {alert.proposedAction.dryRun && ' · runs in simulation mode'}
+                  {alert.proposedAction.executor === 'fail2ban' ? ' · real fail2ban IP ban' : ' · no executor, will be recorded as Simulated'}
                 </div>
                 <div className="mt-1 text-[10px] font-mono text-[var(--color-text-muted)]">
                   Raised by {alert.proposedAction.playbook} because risk scored {alert.riskScore}, above the threshold of 70
                 </div>
               </div>
-              <div className="border-t border-[#ff9d4d30] bg-[var(--color-background)] px-4 py-3 flex items-center gap-2">
-                <input
-                  value={reason}
-                  onChange={e => setReason(e.target.value)}
-                  placeholder="Reason (recorded in the audit trail)"
-                  className="flex-1 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg px-3 py-1.5 text-xs text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] focus:outline-none focus:border-[#4f8cff40]"
-                />
-                <button
-                  onClick={() => decide(alert.id, 'Rejected', reason || 'No reason given')}
-                  className="px-3 py-1.5 rounded-lg border border-[var(--color-border-bright)] text-xs text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition-colors"
-                >
-                  Reject
-                </button>
-                <button
-                  onClick={() => decide(alert.id, 'Approved', reason || 'No reason given')}
-                  className="px-3 py-1.5 rounded-lg bg-[#30d18a20] border border-[#30d18a50] text-xs font-semibold text-[#30d18a] hover:bg-[#30d18a30] transition-colors whitespace-nowrap"
-                >
-                  Approve and run
-                </button>
-              </div>
+              <DecisionControls alert={alert} />
             </div>
           )}
 
-          {/* Already decided */}
-          {(alert.approvalStatus === 'Approved' || alert.approvalStatus === 'Rejected') && alert.proposedAction && (
-            <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-3">
-              <div className="text-[11px] text-[var(--color-info)] mb-1">
-                {alert.approvalStatus === 'Approved' ? 'Approved by an analyst' : 'Rejected by an analyst'}
-              </div>
-              <div className="text-sm text-[var(--color-text-primary)]">{alert.proposedAction.action}</div>
-              <div className="mt-1 text-xs text-[var(--color-text-secondary)]">
-                {alert.approvalStatus === 'Approved'
-                  ? `Playbook ${alert.proposedAction.playbook} ran in simulation mode against ${alert.proposedAction.target}.`
-                  : 'No change was made to the network.'}
-              </div>
-            </div>
-          )}
+          {/* Already decided: what the backend actually did */}
+          <DecisionOutcome alert={alert} />
 
           {/* False-positive disposition — distinct from an approve/reject decision */}
           {alert.falsePositive && (
@@ -409,6 +378,8 @@ export default function AlertDetail({
             />
             {noteError && <div className="mt-1.5 text-[11px] text-[#fb4a63]">{noteError}</div>}
           </div>
+
+          <AuditTrail alert={alert} />
         </div>
 
         {/* Action Bar */}

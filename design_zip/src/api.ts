@@ -10,7 +10,7 @@
  * With no env var it defaults to localhost:8000.
  */
 import type {
-  AdminUser, Alert, AlertNote, Case, WazuhRawEvent,
+  AdminUser, Alert, AlertNote, AuditEntry, Case, WazuhRawEvent,
   MitreCenterResponse, TechniqueDetail,
   SimulationDefinition, SimulationRun, SimulationRunDetail, SimulationCenterSummary,
 } from './data'
@@ -34,9 +34,52 @@ async function req<T>(path: string, init?: RequestInit, timeoutMs = 4000): Promi
     // trip can take a few seconds.
     signal: AbortSignal.timeout(timeoutMs),
   })
-  if (!res.ok) throw new Error(`${path} -> ${res.status}`)
+  if (!res.ok) throw await ApiError.fromResponse(path, res)
   return res.json() as Promise<T>
 }
+
+/** A non-2xx API response, keeping the HTTP status and the backend's own
+ *  `detail` message so the UI can tell an analyst *why* it failed. */
+export class ApiError extends Error {
+  status: number
+  detail: string
+  constructor(path: string, status: number, detail: string) {
+    super(`${path} -> ${status}${detail ? `: ${detail}` : ''}`)
+    this.status = status
+    this.detail = detail
+  }
+  static async fromResponse(path: string, res: Response): Promise<ApiError> {
+    let detail = ''
+    try {
+      const body = await res.json()
+      if (typeof body?.detail === 'string') detail = body.detail
+      else if (Array.isArray(body?.detail)) detail = body.detail.map((d: { msg?: string }) => d.msg).filter(Boolean).join('; ')
+    } catch { /* non-JSON error body */ }
+    return new ApiError(path, res.status, detail)
+  }
+}
+
+/** Analyst-readable explanation of a failed request (never claims success). */
+export function describeApiError(err: unknown): string {
+  if (err instanceof ApiError) {
+    switch (err.status) {
+      case 400: case 422: return err.detail || 'The request was rejected as invalid.'
+      case 401: return 'Your session expired. Sign in again.'
+      case 403: return err.detail || 'You do not have permission to do this.'
+      case 404: return 'This alert no longer exists.'
+      case 409: return err.detail || 'This alert was already handled. The view has been refreshed.'
+      case 500: case 502: case 503: return err.detail || 'The backend failed while processing this. Check the result before retrying.'
+      default: return err.detail || `Unexpected backend response (${err.status}).`
+    }
+  }
+  if (err instanceof DOMException && (err.name === 'TimeoutError' || err.name === 'AbortError')) {
+    return 'The backend did not answer in time. The action may still have been processed; the view will refresh.'
+  }
+  return 'Could not reach the backend.'
+}
+
+// Approve & Run can run a real command on the host, so allow it longer than the default.
+const DECISION_TIMEOUT_MS = 30000
 
 export interface ConnectionStatus {
   connected: boolean
@@ -68,15 +111,26 @@ export interface ShiftSummary {
 }
 
 export const api = {
-  health: () => req<Health>('/api/health'),
+  // Health runs several TCP probes server-side, so give it more than the default budget.
+  health: () => req<Health>('/api/health', undefined, 12000),
   alerts: () => req<Alert[]>('/api/alerts'),
   pending: () => req<Alert[]>('/api/pending'),
   decisions: () => req<{ alertId: string; status: string; by: string; at: string; reason: string }[]>('/api/decisions'),
-  approve: (id: string, decision: 'approve' | 'reject', reason: string, analyst: string) =>
-    req<Alert>(`/api/approve/${id}`, {
+  // Approve & Run / Reject. The analyst identity comes from the verified JWT
+  // on the server, never from the request body.
+  approve: (id: string, decision: 'approve' | 'reject', reason: string) =>
+    req<Alert>(`/api/approve/${encodeURIComponent(id)}`, {
       method: 'POST',
-      body: JSON.stringify({ decision, reason, analyst }),
-    }),
+      body: JSON.stringify({ decision, reason }),
+    }, DECISION_TIMEOUT_MS),
+  retryExecution: (id: string) =>
+    req<Alert>(`/api/alerts/${encodeURIComponent(id)}/retry-execution`, { method: 'POST' }, DECISION_TIMEOUT_MS),
+  unblock: (id: string, reason: string) =>
+    req<Alert>(`/api/alerts/${encodeURIComponent(id)}/unblock`, {
+      method: 'POST',
+      body: JSON.stringify({ reason }),
+    }, DECISION_TIMEOUT_MS),
+  alertAudit: (id: string) => req<AuditEntry[]>(`/api/alerts/${encodeURIComponent(id)}/audit`),
 
   // Raw Wazuh event history — recorded independently of whatever Alert an
   // event becomes, so an analyst can inspect what actually arrived.

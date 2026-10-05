@@ -1,7 +1,7 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import { alerts as seedAlerts, cases as seedCases } from './data'
 import type { Alert, ApprovalStatus, Case } from './data'
-import { api } from './api'
+import { api, describeApiError } from './api'
 import { useAuth } from './lib/AuthContext'
 
 /** The approve/reject decision() can record — distinct from the wider set
@@ -19,11 +19,24 @@ export interface Decision {
   reason: string
 }
 
+/** Result of a backend-authoritative alert action. `ok: true` means the
+ *  backend accepted and persisted it (check alert.executionStatus for what
+ *  actually ran); `ok: false` carries a message safe to show an analyst. */
+export type ActionOutcome = { ok: true; alert: Alert } | { ok: false; error: string }
+
 interface Store {
   alerts: Alert[]
   decisions: Decision[]
   pending: Alert[]
-  decide: (alertId: string, status: ApprovalDecisionStatus, reason: string) => void
+  /** Approve & Run / Reject. Backend-only: nothing changes locally until the
+   *  server has persisted the decision, and failures are returned, never swallowed. */
+  decide: (alertId: string, status: ApprovalDecisionStatus, reason: string) => Promise<ActionOutcome>
+  /** Re-runs an approved action whose execution failed. */
+  retryExecution: (alertId: string) => Promise<ActionOutcome>
+  /** Reverts an executed fail2ban block (unban). */
+  unblock: (alertId: string, reason: string) => Promise<ActionOutcome>
+  /** Re-reads alerts/decisions/cases from the backend now. */
+  refresh: () => Promise<void>
   /** Marks an alert as a false positive (distinct from rejecting a proposed
    *  action) and reconciles local state with the persisted result. Requires
    *  the backend — returns null in mock mode. */
@@ -56,79 +69,92 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const [caseList, setCaseList] = useState<Case[]>(seedCases)
   const { user } = useAuth()
   const currentUser = user?.email ?? 'Unassigned'
+  // Bumped whenever the analyst changes something. A poll that started before
+  // the change must not overwrite the fresher server state it returned.
+  const mutationEpoch = useRef(0)
+
+  const mapDecisions = (decs: Awaited<ReturnType<typeof api.decisions>>): Decision[] =>
+    decs.map(d => ({ alertId: d.alertId, status: d.status as Decision['status'], by: d.by, at: d.at, reason: d.reason }))
 
   // Try the backend on mount. If it answers, switch to live data and poll it.
   // If it doesn't, we silently stay on the seeded mock data.
   useEffect(() => {
     let cancelled = false
     let timer: ReturnType<typeof setInterval> | undefined
+    let retry: ReturnType<typeof setTimeout> | undefined
 
     async function connect() {
       try {
-        const health = await api.health()
-        if (cancelled) return
         const [live, decs, liveCases] = await Promise.all([api.alerts(), api.decisions(), api.cases()])
         if (cancelled) return
         setAlerts(live)
         setCaseList(liveCases)
-        setDecisions(decs.map(d => ({
-          alertId: d.alertId,
-          status: d.status as Decision['status'],
-          by: d.by, at: d.at, reason: d.reason,
-        })))
+        setDecisions(mapDecisions(decs))
         setLive(true)
-        setAiLive(health.aiLive)
+        // Health runs several TCP probes server-side; it only feeds the AI badge, so never block live mode on it.
+        api.health().then(h => { if (!cancelled) setAiLive(h.aiLive) }).catch(() => { /* badge stays off */ })
         setLastFetchedAt(new Date().toISOString())
         // Poll for new alerts every 5s so live Wazuh events show up.
         timer = setInterval(async () => {
+          const epoch = mutationEpoch.current
           try {
             const [fresh, freshDecs, freshCases] = await Promise.all([api.alerts(), api.decisions(), api.cases()])
-            if (cancelled) return
+            if (cancelled || epoch !== mutationEpoch.current) return
             setAlerts(fresh)
             setCaseList(freshCases)
-            setDecisions(freshDecs.map(d => ({
-              alertId: d.alertId, status: d.status as Decision['status'],
-              by: d.by, at: d.at, reason: d.reason,
-            })))
+            setDecisions(mapDecisions(freshDecs))
             setLastFetchedAt(new Date().toISOString())
           } catch { /* backend went away; keep last known data */ }
         }, 5000)
       } catch {
-        // Backend not reachable — stay on mock. This is expected before it's up.
-        if (!cancelled) setLive(false)
+        // Backend not reachable (yet). Stay on mock, but keep trying: a slow
+        // first response must not leave the session on sample data forever.
+        if (!cancelled) {
+          setLive(false)
+          retry = setTimeout(connect, 5000)
+        }
       }
     }
     connect()
-    return () => { cancelled = true; if (timer) clearInterval(timer) }
+    return () => { cancelled = true; if (timer) clearInterval(timer); if (retry) clearTimeout(retry) }
   }, [])
 
-  const applyLocalDecision = useCallback((alertId: string, status: ApprovalDecisionStatus, reason: string) => {
-    setAlerts(prev =>
-      prev.map(a =>
-        a.id === alertId
-          ? {
-              ...a,
-              approvalStatus: status,
-              status: status === 'Approved' ? 'Responding' : 'Resolved',
-              analyst: a.analyst === 'Unassigned' ? currentUser : a.analyst,
-              respondedAt: a.respondedAt || now(),
-            }
-          : a,
-      ),
-    )
-    setDecisions(prev => [{ alertId, status, by: currentUser, at: now(), reason }, ...prev])
-  }, [currentUser])
+  const refresh = useCallback(async () => {
+    try {
+      const [fresh, freshDecs, freshCases] = await Promise.all([api.alerts(), api.decisions(), api.cases()])
+      setAlerts(fresh)
+      setCaseList(freshCases)
+      setDecisions(mapDecisions(freshDecs))
+      setLastFetchedAt(new Date().toISOString())
+    } catch { /* the next poll will try again */ }
+  }, [])
 
-  const decide = useCallback((alertId: string, status: ApprovalDecisionStatus, reason: string) => {
-    // Optimistic update so the UI reacts instantly either way.
-    applyLocalDecision(alertId, status, reason)
-    if (live) {
-      const decision = status === 'Approved' ? 'approve' : 'reject'
-      api.approve(alertId, decision, reason, currentUser)
-        .then(updated => setAlerts(prev => prev.map(a => (a.id === updated.id ? updated : a))))
-        .catch(() => { /* keep optimistic state if the call fails */ })
+  // Every decision goes through here: backend first, UI second. On any
+  // failure (including a timeout where the server may still have acted) the
+  // view is re-read from the backend so it can never drift from the truth.
+  const runAlertAction = useCallback(async (call: () => Promise<Alert>): Promise<ActionOutcome> => {
+    if (!live) return { ok: false, error: 'Backend not connected. Decisions are only recorded by the backend.' }
+    mutationEpoch.current += 1
+    try {
+      const updated = await call()
+      mutationEpoch.current += 1
+      setAlerts(prev => prev.map(a => (a.id === updated.id ? updated : a)))
+      await refresh()
+      return { ok: true, alert: updated }
+    } catch (err) {
+      mutationEpoch.current += 1
+      await refresh()
+      return { ok: false, error: describeApiError(err) }
     }
-  }, [live, applyLocalDecision, currentUser])
+  }, [live, refresh])
+
+  const decide = useCallback(
+    (alertId: string, status: ApprovalDecisionStatus, reason: string) =>
+      runAlertAction(() => api.approve(alertId, status === 'Approved' ? 'approve' : 'reject', reason)),
+    [runAlertAction],
+  )
+  const retryExecution = useCallback((alertId: string) => runAlertAction(() => api.retryExecution(alertId)), [runAlertAction])
+  const unblock = useCallback((alertId: string, reason: string) => runAlertAction(() => api.unblock(alertId, reason)), [runAlertAction])
 
   const markFalsePositive = useCallback(async (alertId: string, reason: string) => {
     if (!live) return null // needs the backend to persist the disposition + audit trail
@@ -190,10 +216,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   const value = useMemo<Store>(
     () => ({
-      alerts, decisions, pending, decide, markFalsePositive, currentUser, live, aiLive, lastFetchedAt,
+      alerts, decisions, pending, decide, retryExecution, unblock, refresh, markFalsePositive, currentUser, live, aiLive, lastFetchedAt,
       cases: caseList, createCase, updateCaseStatus, addCaseNote, toggleCaseTask,
     }),
-    [alerts, decisions, pending, decide, markFalsePositive, live, aiLive, lastFetchedAt, caseList, createCase, updateCaseStatus, addCaseNote, toggleCaseTask],
+    [alerts, decisions, pending, decide, retryExecution, unblock, refresh, markFalsePositive, live, aiLive, lastFetchedAt, caseList, createCase, updateCaseStatus, addCaseNote, toggleCaseTask],
   )
 
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>

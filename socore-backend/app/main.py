@@ -12,14 +12,16 @@ Docs: http://localhost:8000/docs
 """
 from __future__ import annotations
 
+import hmac
 import logging
+import os
 from datetime import datetime, timezone
 
-from fastapi import Depends, FastAPI, HTTPException
+from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 
-from . import actions, ai_explainer, assistant, auth, db, enrichment, integrations_health, mitre, report_export, shift_summary, simulations
+from . import actions, ai_explainer, assistant, auth, db, enrichment, integrations_health, mitre, report_export, response_exec, shift_summary, simulations
 from . import mitre_attack_data as attack_data
 from . import simulation_catalog
 from .correlation import correlate
@@ -29,14 +31,18 @@ from .models import (
     Alert,
     AlertNote,
     ApprovalDecision,
+    ApprovalStatus,
+    AuditEntry,
     AssistantChatRequest,
     AssistantChatResponse,
     Case,
     CreateCaseRequest,
     Event,
+    ExecutionStatus,
     FalsePositiveRequest,
     MitreCenterResponse,
     Profile,
+    ReasonRequest,
     ShiftSummaryResponse,
     SimulationCenterSummary,
     SimulationDefinitionOut,
@@ -80,6 +86,9 @@ def _startup() -> None:
     # Wazuh event arrives. Only runs once — if the table already has rows
     # (a real restart with persisted data), seeding is skipped.
     store.seed(seed_alerts)
+    recovered = store.recover_stuck_executions()
+    if recovered:
+        logger.warning("Marked %d alert(s) stuck in 'Executing' as ExecutionFailed after restart", recovered)
     logger.info("Seeded/verified alerts. AI live: %s", ai_explainer.is_live())
 
 
@@ -184,7 +193,7 @@ def admin_update_role(
 
 # ── Ingestion: Wazuh -> scored alert ────────────────────────────────────────
 @app.post("/api/ingest", response_model=Alert)
-def ingest(event: WazuhEvent) -> Alert:
+def ingest(event: WazuhEvent, x_socore_token: str | None = Header(default=None)) -> Alert:
     """
     Entry point for the detection layer. Wazuh's integration script POSTs an
     event here. If the event doesn't already carry reputation scores, we run
@@ -194,6 +203,15 @@ def ingest(event: WazuhEvent) -> Alert:
     unconfigured MISP/Cortex never blocks the response to Wazuh.
     """
     from .correlation import _is_internal  # local import avoids a cycle at module load
+
+    # Anyone who can reach this endpoint can create alerts (and therefore
+    # approval requests naming an arbitrary target IP). When SOCORE_INGEST_TOKEN
+    # is set the Wazuh integration must send it as X-SOCore-Token; when unset
+    # the endpoint stays open exactly as before so existing deployments keep
+    # working until the token is rolled out on both sides.
+    expected = os.environ.get("SOCORE_INGEST_TOKEN", "").strip()
+    if expected and not hmac.compare_digest(expected, x_socore_token or ""):
+        raise HTTPException(status_code=401, detail="Invalid or missing ingest token")
 
     # Persist the raw Wazuh event first, independent of whatever it becomes.
     # This is the append-only history layer: every event that reaches this
@@ -371,37 +389,218 @@ def list_decisions(current_user: auth.CurrentUser = Depends(auth.get_current_use
 
 
 # ── Human-in-the-loop decision ──────────────────────────────────────────────
+# Approve & Run / Reject are authoritative here, not in the browser:
+#   * only l2_analyst / admin may decide (l1 can investigate, note and escalate)
+#   * the Pending -> Approved/Rejected move is one atomic conditional UPDATE
+#     (store.claim_decision), so concurrent or repeated requests can never
+#     both win — the loser gets 409 and nothing runs a second time
+#   * the response action only runs for the request that won that claim, and
+#     its real outcome (Executed / Simulated / ExecutionFailed) is persisted
+#     and audited before the response is returned
+REVIEW_ROLES = ("l2_analyst", "admin")
+
+
+def _client_ips(request: Request) -> list[str]:
+    """The approving analyst's own address(es) — never blocked, so an analyst
+    cannot ban themselves. X-Forwarded-For can be spoofed, but a spoofed value
+    can only widen the protected set, never narrow it."""
+    ips = []
+    if request.client and request.client.host:
+        ips.append(request.client.host)
+    fwd = request.headers.get("x-forwarded-for", "")
+    ips.extend(p.strip() for p in fwd.split(",") if p.strip())
+    return ips
+
+
+def _require_reviewer(user: auth.CurrentUser, alert: Alert | None, action: str) -> None:
+    if user.role in REVIEW_ROLES:
+        return
+    if alert is not None:
+        store.record_audit(alert.id, user, f"{action}_denied", alert.approvalStatus.value, alert.approvalStatus.value,
+                           f"role '{user.role}' may not {action}")
+    raise HTTPException(status_code=403, detail="L2 analyst or admin role required to approve or reject response actions")
+
+
+def _alert_or_404(alert_id: str) -> Alert:
+    alert = store.get(alert_id)
+    if alert is None:
+        raise HTTPException(status_code=404, detail="Alert not found")
+    return alert
+
+
+def _conflict(alert: Alert, user: auth.CurrentUser, action: str, message: str) -> HTTPException:
+    store.record_audit(alert.id, user, f"{action}_conflict", alert.approvalStatus.value, alert.approvalStatus.value, message)
+    return HTTPException(status_code=409, detail=message)
+
+
+def _execute_and_persist(alert: Alert, user: auth.CurrentUser, request: Request, audit_action: str) -> Alert:
+    """Runs the alert's proposed action (the caller already holds the
+    `Executing` claim) and persists + audits the real outcome."""
+    action = alert.proposedAction
+    try:
+        if action is None:
+            result = {"status": "ExecutionFailed", "ok": False, "error": "Alert has no proposed action"}
+        else:
+            result = response_exec.execute(action.action, action.target, _client_ips(request))
+    except Exception as exc:  # an executor bug must not leave the alert 'Executing'
+        logger.exception("Execution crashed for %s", alert.id)
+        result = {"status": "ExecutionFailed", "ok": False, "error": f"Unexpected executor error: {exc}"}
+
+    status = ExecutionStatus(result["status"])
+    try:
+        finished = store.finish_execution(alert.id, status, result, user, audit_action)
+    except Exception as exc:
+        logger.critical("Action for %s finished as %s but the result could not be saved: %s", alert.id, status.value, exc)
+        raise HTTPException(
+            status_code=500,
+            detail=f"The action finished as {status.value} but its result could not be saved to the database. "
+                   f"Check the target host manually before retrying.",
+        ) from exc
+    if finished is None:
+        raise HTTPException(status_code=409, detail="Alert execution state changed while the action was running")
+
+    verb = {"Executed": "executed", "Simulated": "SIMULATED (no executor, nothing changed)", "ExecutionFailed": "FAILED"}[status.value]
+    detail = f" - {result.get('error')}" if status == ExecutionStatus.failed else ""
+    actions.send_slack_alert(
+        f"{user.display_name} approved: {action.action if action else 'action'} on "
+        f"{action.target if action else alert.sourceIP} - {verb}{detail}"
+    )
+    logger.info("Approved %s -> %s", alert.id, status.value)
+    return finished
+
+
+def _validate_proposed_target(alert: Alert, user: auth.CurrentUser, request: Request, action_name: str) -> None:
+    """Refuses (4xx + audit) an approval whose target must never be blocked.
+    The alert stays Pending so the analyst can still reject it."""
+    action = alert.proposedAction
+    if action is None or response_exec.classify(action.action) != response_exec.KIND_BLOCK_IP:
+        return
+    try:
+        response_exec.validate_block_target(action.target, _client_ips(request))
+    except response_exec.TargetRefused as exc:
+        store.record_audit(alert.id, user, f"{action_name}_refused_protected_target", alert.approvalStatus.value,
+                           alert.approvalStatus.value, str(exc), {"target": action.target})
+        raise HTTPException(status_code=422, detail=f"Refused: {exc}. Reject this action instead.") from exc
+
+
 @app.post("/api/approve/{alert_id}", response_model=Alert)
 def approve(
     alert_id: str,
     decision: ApprovalDecision,
+    request: Request,
     current_user: auth.CurrentUser = Depends(auth.get_current_user),
 ) -> Alert:
     """
-    The dashboard's Approve/Reject buttons call this. Approving runs the
-    proposed playbook (dry-run firewall block + Slack), rejecting closes the
-    alert with no network change. Either way the decision is audited under
-    the authenticated caller's identity, not whatever the client claims.
+    Approve & Run / Reject for a pending alert. Returns the alert as persisted:
+    check `executionStatus` — an approved alert can legitimately come back as
+    ExecutionFailed (decision recorded, action did not run) or Simulated.
     """
     alert = store.get(alert_id)
+    action = (decision.decision or "").strip().lower()
+    verb = "approve" if action.startswith("app") else "reject"
+    _require_reviewer(current_user, alert, verb)
     if alert is None:
         raise HTTPException(status_code=404, detail="Alert not found")
+    if action not in ("approve", "reject"):
+        raise HTTPException(status_code=400, detail="decision must be 'approve' or 'reject'")
 
-    updated = store.decide(alert_id, decision.decision, decision.reason, current_user.display_name)
-    assert updated is not None
+    reason = decision.reason.strip()
+    if verb == "reject" and not reason:
+        raise HTTPException(status_code=400, detail="A reason is required to reject a proposed action")
+    if alert.approvalStatus != ApprovalStatus.pending or alert.falsePositive:
+        why = "marked as a false positive" if alert.falsePositive else f"already {alert.approvalStatus.value.lower()}"
+        raise _conflict(alert, current_user, verb, f"Alert is not awaiting a decision ({why})")
+    if alert.proposedAction is None:
+        raise HTTPException(status_code=409, detail="Alert has no proposed action to decide on")
 
-    if updated.approvalStatus.value == "Approved" and updated.proposedAction:
-        result = actions.block_ip(updated.proposedAction.target, dry_run=updated.proposedAction.dryRun)
-        actions.send_slack_alert(
-            f"{current_user.display_name} approved: {updated.proposedAction.action} "
-            f"on {updated.proposedAction.target} — {result['status']}"
-        )
-        logger.info("Approved %s -> %s", alert_id, result)
+    if verb == "approve":
+        _validate_proposed_target(alert, current_user, request, verb)
+
+    claimed = store.claim_decision(alert_id, verb == "approve", current_user, reason)
+    if claimed is None:
+        # Lost the race: someone else decided between our read and our claim.
+        latest = store.get(alert_id) or alert
+        raise _conflict(latest, current_user, verb,
+                        f"Alert was already {latest.approvalStatus.value.lower()} by another request")
+
+    if verb == "reject":
+        actions.send_slack_alert(f"{current_user.display_name} rejected the action on {claimed.sourceIP}: {reason}")
+        logger.info("Rejected %s by %s", alert_id, current_user.email)
+        return claimed
+    return _execute_and_persist(claimed, current_user, request, "execution")
+
+
+@app.post("/api/alerts/{alert_id}/retry-execution", response_model=Alert)
+def retry_execution(
+    alert_id: str,
+    request: Request,
+    current_user: auth.CurrentUser = Depends(auth.get_current_user),
+) -> Alert:
+    """Re-runs an approved action whose execution failed. Atomic like approve:
+    only one retry can claim ExecutionFailed -> Executing."""
+    alert = store.get(alert_id)
+    _require_reviewer(current_user, alert, "retry")
+    if alert is None:
+        raise HTTPException(status_code=404, detail="Alert not found")
+    if alert.approvalStatus != ApprovalStatus.approved or alert.executionStatus != ExecutionStatus.failed:
+        raise _conflict(alert, current_user, "retry", "Only an approved alert whose execution failed can be retried")
+    _validate_proposed_target(alert, current_user, request, "retry")
+    claimed = store.claim_execution_transition(alert_id, ExecutionStatus.failed, current_user, "retry_requested")
+    if claimed is None:
+        latest = store.get(alert_id) or alert
+        raise _conflict(latest, current_user, "retry", "Execution was already retried by another request")
+    return _execute_and_persist(claimed, current_user, request, "execution_retry")
+
+
+@app.post("/api/alerts/{alert_id}/unblock", response_model=Alert)
+def unblock(
+    alert_id: str,
+    req: ReasonRequest,
+    current_user: auth.CurrentUser = Depends(auth.get_current_user),
+) -> Alert:
+    """Reverts a real fail2ban block (unban) and records it. Executed -> Reverted."""
+    alert = store.get(alert_id)
+    _require_reviewer(current_user, alert, "unblock")
+    if alert is None:
+        raise HTTPException(status_code=404, detail="Alert not found")
+    prior = alert.executionResult or {}
+    if alert.executionStatus != ExecutionStatus.executed or prior.get("mode") != "fail2ban":
+        raise _conflict(alert, current_user, "unblock", "Only an alert with an executed fail2ban block can be unblocked")
+    reason = req.reason.strip()
+    claimed = store.claim_execution_transition(alert_id, ExecutionStatus.executed, current_user, "unblock_requested", reason)
+    if claimed is None:
+        latest = store.get(alert_id) or alert
+        raise _conflict(latest, current_user, "unblock", "Block was already reverted by another request")
+
+    try:
+        unban = response_exec.unban_ip(prior["target"])
+    except Exception as exc:
+        logger.exception("Unban crashed for %s", alert_id)
+        unban = {"ok": False, "error": f"Unexpected executor error: {exc}"}
+    if unban.get("ok"):
+        final_status, merged = ExecutionStatus.reverted, {**prior, "status": "Reverted", "revert": unban}
+        audit_action = "unblock"
     else:
-        actions.send_slack_alert(f"{current_user.display_name} rejected the action on {updated.sourceIP}")
-        logger.info("Rejected %s", alert_id)
+        # Still blocked: put it back to Executed so it can be retried, but keep the failure on record.
+        final_status, merged = ExecutionStatus.executed, {**prior, "revert_error": unban}
+        audit_action = "unblock_failed"
+    finished = store.finish_execution(alert_id, final_status, merged, current_user, audit_action, reason)
+    if finished is None:
+        raise HTTPException(status_code=409, detail="Alert execution state changed while unblocking")
+    actions.send_slack_alert(
+        f"{current_user.display_name} unblocked {prior['target']} - "
+        f"{'reverted' if unban.get('ok') else 'FAILED: ' + str(unban.get('error'))}"
+    )
+    return finished
 
-    return updated
+
+@app.get("/api/alerts/{alert_id}/audit", response_model=list[AuditEntry])
+def alert_audit_trail(
+    alert_id: str,
+    current_user: auth.CurrentUser = Depends(auth.get_current_user),
+) -> list[AuditEntry]:
+    _alert_or_404(alert_id)
+    return store.audit_for_alert(alert_id)
 
 
 # ── Case management (in-house replacement for TheHive) ──────────────────────
@@ -416,7 +615,7 @@ def list_cases(current_user: auth.CurrentUser = Depends(auth.get_current_user)) 
 
 
 @app.get("/api/cases/{case_id}", response_model=Case)
-def get_case(case_id: str) -> Case:
+def get_case(case_id: str, current_user: auth.CurrentUser = Depends(auth.get_current_user)) -> Case:
     case = store.get_case(case_id)
     if case is None:
         raise HTTPException(status_code=404, detail="Case not found")
@@ -444,7 +643,11 @@ def create_case(
 
 
 @app.patch("/api/cases/{case_id}", response_model=Case)
-def update_case(case_id: str, req: UpdateCaseRequest) -> Case:
+def update_case(
+    case_id: str,
+    req: UpdateCaseRequest,
+    current_user: auth.CurrentUser = Depends(auth.get_current_user),
+) -> Case:
     case = store.update_case(case_id, req.status, req.assignedTo)
     if case is None:
         raise HTTPException(status_code=404, detail="Case not found")
@@ -464,7 +667,11 @@ def add_case_note(
 
 
 @app.post("/api/cases/{case_id}/tasks/{task_id}/toggle", response_model=Case)
-def toggle_case_task(case_id: str, task_id: str) -> Case:
+def toggle_case_task(
+    case_id: str,
+    task_id: str,
+    current_user: auth.CurrentUser = Depends(auth.get_current_user),
+) -> Case:
     case = store.toggle_task(case_id, task_id)
     if case is None:
         raise HTTPException(status_code=404, detail="Case not found")

@@ -40,6 +40,10 @@ ones (use the "Authorize" button with a Supabase-issued JWT).
 | `MISP_URL`, `MISP_API_KEY`, `MISP_VERIFY_SSL` | No | MISP instance for IOC lookups. Skipped if unset. |
 | `CORTEX_URL`, `CORTEX_API_KEY` | No | Cortex instance (VirusTotal/AbuseIPDB analyzers). Skipped if unset. |
 | `SHUFFLE_WEBHOOK_URL` | No | The specific workflow's **Webhook Trigger** URL (not Shuffle's own login URL) — high-risk alerts are POSTed here for SOAR automation. Skipped if unset. |
+| `SOCORE_PROTECTED_IPS` | **Recommended** | Comma-separated IPs/CIDRs that Approve & Run must never block (analysts' public IPs, the VM's IP). Private/loopback/link-local ranges, `PUBLIC_HOST` and the approver's own IP are always refused regardless. |
+| `SOCORE_FAIL2BAN_JAIL` | No | fail2ban jail used for IP bans (default `sshd`). |
+| `SOCORE_FAIL2BAN_SUDO` | No | `true` (default) runs fail2ban-client via `sudo -n`; set `false` when running as root. |
+| `SOCORE_INGEST_TOKEN` | No | If set, `POST /api/ingest` requires header `X-SOCore-Token`. The Wazuh integration script sends it from its own `SOCORE_INGEST_TOKEN` env var. |
 
 ### Connecting the dashboard
 
@@ -59,7 +63,10 @@ Point the frontend's `VITE_API_URL` at wherever this is running
 | `GET /api/alerts/{id}` | Single alert detail, including its AI explanation, MITRE technique, and enrichment data. |
 | `GET /api/alerts/{id}/explain` | Fetch (or lazily generate) the Groq explanation for one alert. |
 | `GET /api/pending` | Alerts currently awaiting analyst approval. |
-| `POST /api/decisions` | Record an analyst's approve/reject decision on an alert; writes to the audit trail and, if approved, triggers the response action / Shuffle handoff. |
+| `POST /api/approve/{id}` | *(l2_analyst/admin)* Approve & Run (`{"decision":"approve","reason"}`) or Reject (`{"decision":"reject","reason"}`, reason required). Atomic `Pending → Approved/Rejected`; only the winning request runs the action. `409` if already decided, `422` if the target is protected/private, `403` for L1. Returns the alert with `executionStatus` (`Executed` / `Simulated` / `ExecutionFailed`). |
+| `POST /api/alerts/{id}/retry-execution` | *(l2_analyst/admin)* Re-run an approved action whose execution failed. |
+| `POST /api/alerts/{id}/unblock` | *(l2_analyst/admin)* Revert an executed fail2ban ban (`unbanip`). |
+| `GET /api/alerts/{id}/audit` | Append-only audit trail for the alert (decisions, execution results, refused attempts). |
 | `GET /api/decisions` | Decision/audit history. |
 | `GET /api/events` | Raw Wazuh event history (every event received, independent of whether it became an alert). |
 | `GET /api/events/{id}` | Single raw event, including its original JSON payload. |
@@ -162,3 +169,27 @@ correlation engine's risk scoring is built on:
 Every event is stored as-is first (`/api/events`) regardless of its level;
 only events that clear the configured alerting threshold and pass
 correlation become an `Alert`.
+
+
+## Response execution (Approve & Run)
+
+* Approve & Run for **"Block source IP at the perimeter firewall"** really bans the IP in the host's
+  fail2ban jail (`fail2ban-client set <jail> banip <ip>`), then reads the jail's banned list back to verify.
+  Exit code, command, and banned list are stored in `alerts.execution_result`. GCP firewall rules are never touched.
+* Every other proposed action (isolate host, quarantine mail, reset credentials, WAF rule, ...) has no executor:
+  it is recorded as **Simulated** and never reported as Executed.
+* Never blocked (refused with 422 and audited): invalid IPs, RFC1918/loopback/link-local/CGNAT/multicast/reserved,
+  `SOCORE_PROTECTED_IPS`, `PUBLIC_HOST`, and the approving analyst's own IP.
+* State machine: approval `Pending → Approved | Rejected`; execution `Executing → Executed | Simulated | ExecutionFailed`,
+  `ExecutionFailed → Executing` (retry), `Executed → Reverted` (unblock). Each step is one conditional `UPDATE`, so
+  duplicate/concurrent requests cannot run an action twice. `decisions` and `audit_log` reject UPDATE/DELETE via triggers.
+
+fail2ban on the VM (run once; adjust the service user):
+
+```bash
+sudo apt-get install -y fail2ban && sudo systemctl enable --now fail2ban
+echo 'socore ALL=(root) NOPASSWD: /usr/bin/fail2ban-client set sshd banip *, /usr/bin/fail2ban-client set sshd unbanip *, /usr/bin/fail2ban-client status sshd' | sudo tee /etc/sudoers.d/socore-fail2ban
+sudo visudo -cf /etc/sudoers.d/socore-fail2ban
+```
+
+Note: a ban in the `sshd` jail blocks that IP's SSH access to this host; it is not a network-wide firewall block.

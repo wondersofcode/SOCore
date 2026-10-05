@@ -2,11 +2,11 @@ import { useState } from 'react'
 import { useStore } from '../store'
 import type { Alert } from '../data'
 import { RiskScore, AiExplanation } from './Shared'
+import { DecisionControls } from './Decision'
 
 // ── One approval request ────────────────────────────────────────────────────
 function ApprovalCard({ alert, onSelectAlert }: { alert: Alert; onSelectAlert: (id: string) => void }) {
-  const { decide, currentUser } = useStore()
-  const [reason, setReason] = useState('')
+  const { currentUser } = useStore()
   const [expanded, setExpanded] = useState(false)
   const action = alert.proposedAction!
 
@@ -19,11 +19,9 @@ function ApprovalCard({ alert, onSelectAlert }: { alert: Alert; onSelectAlert: (
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
             <span className="text-[var(--color-text-primary)] font-semibold">{action.action}</span>
-            {action.dryRun && (
-              <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-[var(--color-border)] text-[var(--color-text-secondary)]">
-                simulated
-              </span>
-            )}
+            <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-[var(--color-border)] text-[var(--color-text-secondary)]">
+              {action.executor === 'fail2ban' ? 'real: fail2ban ban' : 'will be simulated'}
+            </span>
           </div>
           <div className="mt-1 flex items-center gap-2 text-xs text-[var(--color-text-secondary)] flex-wrap">
             <span className="font-mono text-[var(--color-text-primary)]">{action.target}</span>
@@ -52,27 +50,8 @@ function ApprovalCard({ alert, onSelectAlert }: { alert: Alert; onSelectAlert: (
         />
       </div>
 
-      {/* The human decision */}
-      <div className="border-t border-[var(--color-border)] bg-[var(--color-background)] px-5 py-3 flex items-center gap-3">
-        <input
-          value={reason}
-          onChange={e => setReason(e.target.value)}
-          placeholder="Reason for the decision (recorded in the audit trail)"
-          className="flex-1 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg px-3 py-1.5 text-xs text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] focus:outline-none focus:border-[#4f8cff40] transition-colors"
-        />
-        <button
-          onClick={() => decide(alert.id, 'Rejected', reason || 'No reason given')}
-          className="px-3 py-1.5 rounded-lg border border-[var(--color-border-bright)] text-xs text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:border-[var(--color-text-muted)] transition-colors whitespace-nowrap"
-        >
-          Reject
-        </button>
-        <button
-          onClick={() => decide(alert.id, 'Approved', reason || 'No reason given')}
-          className="px-4 py-1.5 rounded-lg bg-[#30d18a20] border border-[#30d18a50] text-xs font-semibold text-[#30d18a] hover:bg-[#30d18a30] transition-colors whitespace-nowrap"
-        >
-          Approve and run
-        </button>
-      </div>
+      {/* The human decision (backend-authoritative) */}
+      <DecisionControls alert={alert} />
     </div>
   )
 }
@@ -95,7 +74,7 @@ export default function Approvals({ onSelectAlert }: { onSelectAlert: (id: strin
         <div className="mt-3 flex items-center gap-5 text-[11px] font-mono">
           <span className="text-[#ff9d4d]">{pending.length} waiting on a human</span>
           <span className="text-[#30d18a]">{autoHandled} handled automatically</span>
-          <span className="text-[var(--color-text-secondary)]">{decisions.length} decided this session</span>
+          <span className="text-[var(--color-text-secondary)]">{decisions.length} decisions on record</span>
         </div>
       </div>
 

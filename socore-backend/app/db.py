@@ -175,6 +175,24 @@ CREATE TABLE IF NOT EXISTS simulation_runs (
 CREATE INDEX IF NOT EXISTS idx_simulation_runs_technique ON simulation_runs (technique_id);
 CREATE INDEX IF NOT EXISTS idx_simulation_runs_status ON simulation_runs (status);
 
+-- Append-only audit trail of every sensitive action on an alert (decisions,
+-- execution attempts and outcomes, reversals, and refused attempts). Rows are
+-- never updated or deleted — enforced by a trigger, see MIGRATIONS.
+CREATE TABLE IF NOT EXISTS audit_log (
+    id          BIGSERIAL PRIMARY KEY,
+    alert_id    TEXT NOT NULL,
+    actor_id    TEXT,
+    actor_name  TEXT NOT NULL,
+    actor_role  TEXT,
+    action      TEXT NOT NULL,
+    prev_state  TEXT,
+    new_state   TEXT,
+    reason      TEXT,
+    result      JSONB,
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_audit_log_alert_id ON audit_log (alert_id, id);
+
 -- Backs AlertStore._next_seq_id: one row per (prefix, day), incremented with
 -- a single atomic UPSERT so two near-simultaneous requests (e.g. Wazuh
 -- forwarding the same event twice) can never be handed the same next id —
@@ -196,6 +214,33 @@ ALTER TABLE alerts ADD COLUMN IF NOT EXISTS false_positive BOOLEAN NOT NULL DEFA
 ALTER TABLE alerts ADD COLUMN IF NOT EXISTS false_positive_reason TEXT;
 ALTER TABLE alerts ADD COLUMN IF NOT EXISTS false_positive_by TEXT;
 ALTER TABLE alerts ADD COLUMN IF NOT EXISTS false_positive_at TEXT;
+-- Human-in-the-loop decision + response-execution tracking. Existing rows get
+-- execution_status 'None' (they pre-date execution tracking) — nothing is
+-- rewritten or dropped.
+ALTER TABLE alerts ADD COLUMN IF NOT EXISTS execution_status TEXT NOT NULL DEFAULT 'None';
+ALTER TABLE alerts ADD COLUMN IF NOT EXISTS execution_result JSONB;
+ALTER TABLE alerts ADD COLUMN IF NOT EXISTS executed_at TEXT;
+ALTER TABLE alerts ADD COLUMN IF NOT EXISTS decided_by TEXT;
+ALTER TABLE alerts ADD COLUMN IF NOT EXISTS decided_by_role TEXT;
+ALTER TABLE alerts ADD COLUMN IF NOT EXISTS decision_reason TEXT;
+ALTER TABLE alerts ADD COLUMN IF NOT EXISTS decided_at TEXT;
+ALTER TABLE decisions ADD COLUMN IF NOT EXISTS actor_id TEXT;
+ALTER TABLE decisions ADD COLUMN IF NOT EXISTS actor_role TEXT;
+ALTER TABLE decisions ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT now();
+
+-- Decision history is immutable: an analyst (or a bug) must not be able to
+-- silently rewrite or delete what was decided/audited.
+CREATE OR REPLACE FUNCTION socore_forbid_history_change() RETURNS trigger AS $fn$
+BEGIN
+    RAISE EXCEPTION '% on % is not allowed: history is append-only', TG_OP, TG_TABLE_NAME;
+END;
+$fn$ LANGUAGE plpgsql;
+DROP TRIGGER IF EXISTS audit_log_append_only ON audit_log;
+CREATE TRIGGER audit_log_append_only BEFORE UPDATE OR DELETE ON audit_log
+    FOR EACH ROW EXECUTE FUNCTION socore_forbid_history_change();
+DROP TRIGGER IF EXISTS decisions_append_only ON decisions;
+CREATE TRIGGER decisions_append_only BEFORE UPDATE OR DELETE ON decisions
+    FOR EACH ROW EXECUTE FUNCTION socore_forbid_history_change();
 """
 
 
