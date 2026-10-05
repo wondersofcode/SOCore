@@ -69,9 +69,12 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const [caseList, setCaseList] = useState<Case[]>(seedCases)
   const { user } = useAuth()
   const currentUser = user?.email ?? 'Unassigned'
-  // Bumped whenever the analyst changes something. A poll that started before
-  // the change must not overwrite the fresher server state it returned.
+  // Bumped whenever the analyst changes something, and counted while a change
+  // is in flight. A list fetch (poll or refresh) that overlapped a change may
+  // carry pre-change data, so its result is dropped instead of overwriting the
+  // fresher state; the change's own follow-up refresh re-reads it.
   const mutationEpoch = useRef(0)
+  const mutationsInFlight = useRef(0)
 
   const mapDecisions = (decs: Awaited<ReturnType<typeof api.decisions>>): Decision[] =>
     decs.map(d => ({ alertId: d.alertId, status: d.status as Decision['status'], by: d.by, at: d.at, reason: d.reason }))
@@ -99,7 +102,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           const epoch = mutationEpoch.current
           try {
             const [fresh, freshDecs, freshCases] = await Promise.all([api.alerts(), api.decisions(), api.cases()])
-            if (cancelled || epoch !== mutationEpoch.current) return
+            if (cancelled || epoch !== mutationEpoch.current || mutationsInFlight.current > 0) return
             setAlerts(fresh)
             setCaseList(freshCases)
             setDecisions(mapDecisions(freshDecs))
@@ -120,8 +123,11 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   }, [])
 
   const refresh = useCallback(async () => {
+    const epoch = mutationEpoch.current
     try {
       const [fresh, freshDecs, freshCases] = await Promise.all([api.alerts(), api.decisions(), api.cases()])
+      // Stale: a decision started/finished (or is running) while this was in flight.
+      if (epoch !== mutationEpoch.current || mutationsInFlight.current > 0) return
       setAlerts(fresh)
       setCaseList(freshCases)
       setDecisions(mapDecisions(freshDecs))
@@ -135,14 +141,17 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const runAlertAction = useCallback(async (call: () => Promise<Alert>): Promise<ActionOutcome> => {
     if (!live) return { ok: false, error: 'Backend not connected. Decisions are only recorded by the backend.' }
     mutationEpoch.current += 1
+    mutationsInFlight.current += 1
     try {
       const updated = await call()
       mutationEpoch.current += 1
       setAlerts(prev => prev.map(a => (a.id === updated.id ? updated : a)))
+      mutationsInFlight.current -= 1
       await refresh()
       return { ok: true, alert: updated }
     } catch (err) {
       mutationEpoch.current += 1
+      mutationsInFlight.current -= 1
       await refresh()
       return { ok: false, error: describeApiError(err) }
     }

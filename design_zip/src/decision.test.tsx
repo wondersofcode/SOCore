@@ -157,6 +157,63 @@ describe('store.decide (backend-authoritative)', () => {
   })
 })
 
+describe('stale refresh race (regression)', () => {
+  it('a refresh that was in flight cannot overwrite a newer decision with pre-decision data', async () => {
+    const X = A({ id: 'ALT-X' })
+    const Y = A({ id: 'ALT-Y' })
+    const Xa = { ...X, approvalStatus: 'Approved' as const, status: 'Responding' as const, executionStatus: 'Simulated' as const }
+    const Ya = { ...Y, approvalStatus: 'Approved' as const, status: 'Responding' as const, executionStatus: 'Simulated' as const }
+    serverAlerts = [X, Y]
+    await mountLive()
+    expect(screen.getByTestId('pending').textContent).toBe('2')
+
+    // From here every list fetch is held open so the test controls arrival order.
+    const held: Array<(v: Alert[]) => void> = []
+    m(api.alerts).mockImplementation(() => new Promise<Alert[]>(r => { held.push(r) }))
+    m(api.approve).mockImplementation(async (id: string) => (id === 'ALT-X' ? Xa : Ya))
+
+    // Decision 1 completes; its follow-up refresh (#1) starts and hangs.
+    let o1!: Promise<ActionOutcome>
+    act(() => { o1 = captured.decide('ALT-X', 'Approved', '') })
+    await waitFor(() => expect(held.length).toBe(1))
+
+    // Decision 2 completes while refresh #1 is still in flight; its refresh (#2) starts.
+    let o2!: Promise<ActionOutcome>
+    act(() => { o2 = captured.decide('ALT-Y', 'Approved', '') })
+    await waitFor(() => expect(held.length).toBe(2))
+
+    // Refresh #2 (post-decision data) lands first ...
+    await act(async () => { held[1]([Xa, Ya]); await o2 })
+    expect(screen.getByTestId('pending').textContent).toBe('0')
+
+    // ... then the STALE refresh #1 lands last, still showing Y as Pending.
+    await act(async () => { held[0]([Xa, Y]); await o1 })
+
+    expect(captured.alerts.find(a => a.id === 'ALT-Y')?.approvalStatus).toBe('Approved')
+    expect(screen.getByTestId('pending').textContent).toBe('0')
+  })
+
+  it('a refresh that lands while a decision request is still running is dropped', async () => {
+    const X = A({ id: 'ALT-X' })
+    const Xa = { ...X, approvalStatus: 'Approved' as const, executionStatus: 'Simulated' as const }
+    serverAlerts = [X]
+    await mountLive()
+    let release!: (a: Alert) => void
+    m(api.approve).mockImplementation(() => new Promise<Alert>(r => { release = r }))
+    let outcome!: Promise<ActionOutcome>
+    act(() => { outcome = captured.decide('ALT-X', 'Approved', '') })
+
+    // An unrelated refresh finishes mid-request with data that predates the decision.
+    m(api.alerts).mockResolvedValue([X])
+    await act(async () => { await captured.refresh() })
+    expect(captured.alerts[0].approvalStatus).toBe('Pending') // unchanged: still awaiting the backend
+
+    m(api.alerts).mockResolvedValue([Xa])
+    await act(async () => { release(Xa); await outcome })
+    expect(captured.alerts[0].approvalStatus).toBe('Approved')
+  })
+})
+
 describe('DecisionControls', () => {
   it('double click sends exactly one request and disables the buttons while it runs', async () => {
     let release!: (a: Alert) => void
